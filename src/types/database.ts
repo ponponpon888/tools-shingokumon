@@ -23,7 +23,6 @@ export type EventType =
   | 'unsubscribe'
 export type MessageStatus = 'queued' | 'sent' | 'failed' | 'bounced'
 
-// メニューコンテンツのJSON構造
 export interface MenuContent {
   sections: MenuSection[]
 }
@@ -47,7 +46,6 @@ export interface MenuItem {
   tax_included: boolean
 }
 
-// DB型定義
 export interface Database {
   public: {
     Tables: {
@@ -92,6 +90,8 @@ export interface Database {
           template_id: string
           input_mode: InputMode | null
           content_json: MenuContent
+          translations: Json | null
+          selected_languages: string[] | null
           status: MenuStatus
           expires_at: string
           updated_at: string

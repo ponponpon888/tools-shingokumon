@@ -2,6 +2,7 @@ const steps = [
   { num: '01', label: 'アップロード' },
   { num: '02', label: '確認・編集' },
   { num: '03', label: 'デザイン' },
+  { num: '03.5', label: '言語選択' },
   { num: '04', label: 'メール受取' },
   { num: '05', label: '完成' },
 ]
@@ -14,7 +15,7 @@ type Props = {
 export default function StepBar({ currentStep, onStepClick }: Props) {
   return (
     <div
-      className="mb-6 grid grid-cols-5 gap-px"
+      className="mb-6 grid grid-cols-6 gap-px"
       style={{ background: 'rgba(201,168,76,0.07)', border: '1px solid rgba(201,168,76,0.07)' }}
     >
       {steps.map((s, i) => {

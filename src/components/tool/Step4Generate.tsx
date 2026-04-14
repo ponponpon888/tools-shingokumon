@@ -10,13 +10,11 @@ type Props = {
 
 const INDUSTRIES = ['飲食・カフェ', '旅館・ホテル', '美容・ネイル', 'エステ', '整骨院・整体', 'その他']
 
-const LOADING_MESSAGES = [
-    'AIがメニューを読み取っています...',
-    '英語に翻訳中...',
-    '中国語に翻訳中...',
-    '韓国語に翻訳中...',
-    'メニュー表を組み立てています...',
-]
+const LANG_LABELS: Record<string, string> = {
+    en: '英語',
+    zh: '中国語',
+    ko: '韓国語',
+}
 
 export default function Step4Generate({ state, update }: Props) {
     const [email, setEmail] = useState(state.email)
@@ -25,6 +23,15 @@ export default function Step4Generate({ state, update }: Props) {
     const [loading, setLoading] = useState(false)
     const [loadingMsg, setLoadingMsg] = useState('')
     const [error, setError] = useState<string | null>(null)
+
+    const selectedLanguages = state.selectedLanguages ?? ['en']
+    const langLabel = selectedLanguages.map((l) => LANG_LABELS[l] ?? l).join('・')
+
+    const loadingMessages = [
+        'AIがメニューを読み取っています...',
+        ...selectedLanguages.map((l) => `${LANG_LABELS[l] ?? l}に翻訳中...`),
+        'メニュー表を組み立てています...',
+    ]
 
     const handleGenerate = async () => {
         if (!email || !email.includes('@')) {
@@ -36,10 +43,10 @@ export default function Step4Generate({ state, update }: Props) {
         setError(null)
 
         let msgIdx = 0
-        setLoadingMsg(LOADING_MESSAGES[0])
+        setLoadingMsg(loadingMessages[0])
         const msgInterval = setInterval(() => {
-            msgIdx = (msgIdx + 1) % LOADING_MESSAGES.length
-            setLoadingMsg(LOADING_MESSAGES[msgIdx])
+            msgIdx = (msgIdx + 1) % loadingMessages.length
+            setLoadingMsg(loadingMessages[msgIdx])
         }, 3000)
 
         try {
@@ -54,21 +61,21 @@ export default function Step4Generate({ state, update }: Props) {
                     templateId: state.templateId,
                     content: state.content,
                     inputMode: state.inputMode,
+                    selectedLanguages,
                 }),
             })
 
             if (!res.ok) throw new Error('生成に失敗しました')
 
             const data = await res.json()
-            if (!data.content) throw new Error('翻訳結果が取得できませんでした')
 
             update({
                 email,
                 industry,
                 industryOther,
-                generatedContent: data.content,
+                generatedContent: data.content ?? null,
                 menuProjectId: data.menuProjectId,
-                step: 5,
+                step: 6,
             })
         } catch {
             setError('生成に失敗しました。もう一度お試しください。')
@@ -100,8 +107,8 @@ export default function Step4Generate({ state, update }: Props) {
                         className="w-full border bg-transparent px-3 py-3 text-sm"
                         style={{ borderColor: 'rgba(201,168,76,0.2)', color: '#f0ece4' }}
                     />
-                    <p className="mt-1.5 text-[10px]" style={{ color: 'rgba(240,236,228,0.2)' }}>
-                        完成したメニューと役立つ情報をお届けします
+                    <p className="mt-1.5 text-[10px]" style={{ color: 'rgba(240,236,228,0.25)' }}>
+                        完成したメニューは後から編集・改善できます。外国人集客のヒントもあわせてお届けします。
                     </p>
                 </div>
 
@@ -146,8 +153,11 @@ export default function Step4Generate({ state, update }: Props) {
                     {[
                         { label: '店名', value: state.shopName },
                         { label: 'テンプレート', value: state.templateId },
-                        { label: '品目数', value: `${state.content.sections.reduce((s, sec) => s + sec.items.length, 0)}品目` },
-                        { label: '翻訳言語', value: '英語・中国語・韓国語' },
+                        {
+                            label: '品目数',
+                            value: `${state.content.sections.reduce((s, sec) => s + sec.items.length, 0)}品目`,
+                        },
+                        { label: '翻訳言語', value: langLabel },
                     ].map(({ label, value }) => (
                         <div
                             key={label}
@@ -189,17 +199,17 @@ export default function Step4Generate({ state, update }: Props) {
                     className="w-full border py-4 text-[11px] tracking-widest transition-colors disabled:opacity-40"
                     style={{ borderColor: 'rgba(201,168,76,0.45)', color: '#c9a84c' }}
                 >
-                    {loading ? '生成中...' : 'メニューを生成する →'}
+                    {loading ? '生成中...' : '無料でメニューを生成する →'}
                 </button>
 
                 {!loading && (
                     <div className="mt-4 text-center">
                         <button
-                            onClick={() => update({ step: 3 })}
+                            onClick={() => update({ step: 4 })}
                             className="text-[10px] tracking-wider"
                             style={{ color: 'rgba(240,236,228,0.18)' }}
                         >
-                            ← テンプレート選択に戻る
+                            ← 言語選択に戻る
                         </button>
                     </div>
                 )}
