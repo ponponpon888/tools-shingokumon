@@ -1,3 +1,5 @@
+'use client'
+
 import MenuTool from '@/components/tool/MenuTool'
 import Nav from '@/components/layout/Nav'
 import GeoBg from '@/components/ui/GeoBg'
