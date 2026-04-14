@@ -14,9 +14,9 @@ type LangOption = {
 }
 
 const LANG_OPTIONS: LangOption[] = [
-    { id: 'en', label: 'English', note: 'Covers about 80% of foreign visitors (recommended)' },
-    { id: 'zh', label: '\u4e2d\u6587\uff08\u7b80\u4f53\u5b57\uff09', note: '\u8a2a\u65e5\u4e2d\u56fd\u4eba\u30fb\u53f0\u6e7e\u4eba\u65c5\u884c\u8005\u306b\u5bfe\u5fdc' },
-    { id: 'ko', label: '\ud55c\uad6d\uc5b4', note: '\u30ea\u30d4\u30fc\u30bf\u30fc\u306e\u591a\u3044\u97d3\u56fd\u4eba\u65c5\u884c\u5ba2\u306b\u5bfe\u5fdc' },
+    { id: 'en', label: 'English', note: '外国人の約80%がカバーできます（推奨）' },
+    { id: 'zh', label: '中文（简体字）', note: '訪日中国人・台湾人旅行者に対応' },
+    { id: 'ko', label: '한국어', note: 'リピーターの多い韓国人旅行客に対応' },
 ]
 
 const gold = '#c9a84c'
