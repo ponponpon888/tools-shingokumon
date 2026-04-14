@@ -15,7 +15,7 @@ export default async function MenuPage({ params }: Props) {
         .from('menu_projects')
         .select('id, template_id, content_json, translations, selected_languages, status')
         .eq('id', params.id)
-        .single()
+        .single() as any
 
     if (error || !data || data.status !== 'generated') {
         notFound()
