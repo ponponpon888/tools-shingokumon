@@ -16,8 +16,8 @@ const textPrimary = '#f0ece4'
 const textMuted = 'rgba(240,236,228,0.45)'
 const textFaint = 'rgba(240,236,228,0.25)'
 
-const MUSUBU_URL = 'https://musubu.shingokumon.com'
-const LP_URL = 'https://shingokumon.com/contact'
+const MUSUBU_URL = 'https://musubu-lp.vercel.app/'
+const LP_URL = 'https://www.shingokumon.com/contact'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://tools-shingokumon.vercel.app'
 
 export default function Step5Result({ state }: Props) {
