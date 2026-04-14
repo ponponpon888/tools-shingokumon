@@ -1,8 +1,8 @@
-'use client'
-
-import MenuTool from '@/components/tool/MenuTool'
+import dynamic from 'next/dynamic'
 import Nav from '@/components/layout/Nav'
 import GeoBg from '@/components/ui/GeoBg'
+
+const MenuTool = dynamic(() => import('@/components/tool/MenuTool'), { ssr: false })
 
 export default function MenuToolPage() {
   return (
