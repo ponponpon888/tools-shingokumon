@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
             const message = await client.messages.create({
                 model: 'claude-haiku-4-5-20251001',
-                max_tokens: 100,
+                max_tokens: 200,
                 messages: [
                     {
                         role: 'user',
@@ -49,8 +49,15 @@ Rules:
                 const parsed = JSON.parse(text)
                 return NextResponse.json(parsed)
             } catch {
+                // フォールバックも選択言語に対応
+                const fallbackMap: Record<string, { foreign: string; foreignPlural: string }> = {
+                    zh: { foreign: '请给我这个。', foreignPlural: `请给我${qty}个这个。` },
+                    ko: { foreign: '이것 주세요.', foreignPlural: `이것 ${qty}개 주세요.` },
+                    en: { foreign: 'This one, please.', foreignPlural: `${qty} of this, please.` },
+                }
+                const fb = fallbackMap[lang] ?? fallbackMap['en']
                 return NextResponse.json({
-                    foreign: qty > 1 ? `${qty} of this, please.` : 'This one, please.',
+                    foreign: qty > 1 ? fb.foreignPlural : fb.foreign,
                     japanese: qty > 1 ? `これを${qty}つください` : 'これをください',
                 })
             }
