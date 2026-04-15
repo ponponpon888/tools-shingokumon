@@ -5,10 +5,60 @@ const client = new Anthropic()
 
 export async function POST(req: NextRequest) {
     try {
-        const { question, menuText, lang } = await req.json()
+        const { question, menuText, lang, mode, quantity } = await req.json()
 
-        if (!question || !menuText) {
+        if (!menuText) {
             return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+        }
+
+        // 注文フレーズモード
+        if (mode === 'order') {
+            const qty = quantity ?? 1
+            const langMap: Record<string, string> = {
+                en: 'English',
+                zh: 'Chinese (Simplified)',
+                ko: 'Korean',
+            }
+            const targetLang = langMap[lang] ?? 'English'
+
+            const message = await client.messages.create({
+                model: 'claude-haiku-4-5-20251001',
+                max_tokens: 100,
+                messages: [
+                    {
+                        role: 'user',
+                        content: `Generate a natural order phrase for a customer ordering ${qty} of "${menuText}" at a Japanese restaurant/shop.
+
+Return ONLY a JSON object with exactly these two fields, no other text:
+{
+  "foreign": "order phrase in ${targetLang}",
+  "japanese": "同じ意味の日本語フレーズ"
+}
+
+Rules:
+- foreign: natural phrase in ${targetLang} mentioning quantity if more than 1
+- japanese: natural Japanese phrase a customer would say to staff
+- Keep both under 15 words
+- No markdown, no explanation, just the JSON`,
+                    },
+                ],
+            })
+
+            const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '{}'
+            try {
+                const parsed = JSON.parse(text)
+                return NextResponse.json(parsed)
+            } catch {
+                return NextResponse.json({
+                    foreign: qty > 1 ? `${qty} of this, please.` : 'This one, please.',
+                    japanese: qty > 1 ? `これを${qty}つください` : 'これをください',
+                })
+            }
+        }
+
+        // 通常の質問モード
+        if (!question) {
+            return NextResponse.json({ error: 'Missing question' }, { status: 400 })
         }
 
         const langInstruction =

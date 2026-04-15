@@ -13,12 +13,6 @@ const TEMPLATES: Record<string, { bg: string; accent: string; isDark: boolean }>
     pink: { bg: '#fff8f9', accent: '#c0547a', isDark: false },
 }
 
-const LANG_LABELS: Record<string, string> = {
-    en: 'English',
-    zh: '中文',
-    ko: '한국어',
-}
-
 type MenuItem = {
     name: string
     price: number
@@ -42,6 +36,11 @@ type Props = {
     selectedLanguages: string[]
 }
 
+type OrderPhrase = {
+    foreign: string
+    japanese: string
+}
+
 export default function MenuDisplay({
     id,
     templateId,
@@ -50,134 +49,78 @@ export default function MenuDisplay({
     selectedLanguages,
 }: Props) {
     const tmpl = TEMPLATES[templateId] ?? TEMPLATES['gold']
-    const [lang, setLang] = useState(selectedLanguages[0] ?? 'en')
-    const [chatOpen, setChatOpen] = useState(false)
-    const [question, setQuestion] = useState('')
-    const [answer, setAnswer] = useState('')
-    const [loading, setLoading] = useState(false)
+    const lang = selectedLanguages[0] ?? 'en'
 
     const textColor = tmpl.isDark ? '#f0ece4' : '#1a1a1a'
-    const subTextColor = tmpl.isDark ? 'rgba(240,236,228,0.45)' : 'rgba(30,30,30,0.45)'
+    const subTextColor = tmpl.isDark ? 'rgba(240,236,228,0.5)' : 'rgba(30,30,30,0.5)'
     const borderColor = tmpl.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
+    const cardBg = tmpl.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'
+
+    // 数量管理: key = "si-ii"
+    const [quantities, setQuantities] = useState<Record<string, number>>({})
+
+    // 注文フレーズ管理: key = "si-ii"
+    const [orderPhrases, setOrderPhrases] = useState<Record<string, OrderPhrase | null>>({})
+    const [loadingKey, setLoadingKey] = useState<string | null>(null)
 
     const currentData: TranslationData = translations?.[lang] ?? { sections: [] }
     const japaneseData = contentJson ?? { sections: [] }
 
-    const handleAsk = async () => {
-        if (!question.trim()) return
-        setLoading(true)
-        setAnswer('')
-        try {
-            const menuText = currentData.sections
-                .flatMap(s => s.items.map(i => `${i.name}: ${i.desc ?? ''} (¥${i.price})`))
-                .join('\n')
+    const getQuantity = (key: string) => quantities[key] ?? 1
 
+    const setQuantity = (key: string, val: number) => {
+        if (val < 1) return
+        setQuantities((prev) => ({ ...prev, [key]: val }))
+    }
+
+    const handleOrder = async (key: string, itemName: string, qty: number) => {
+        setLoadingKey(key)
+        setOrderPhrases((prev) => ({ ...prev, [key]: null }))
+        try {
             const res = await fetch('/api/menu/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question, menuText, lang }),
+                body: JSON.stringify({
+                    question: `Generate an order phrase for "${itemName}", quantity ${qty}`,
+                    menuText: itemName,
+                    lang,
+                    mode: 'order',
+                    quantity: qty,
+                }),
             })
             const data = await res.json()
-            setAnswer(data.answer ?? 'Sorry, I could not answer that.')
+            setOrderPhrases((prev) => ({
+                ...prev,
+                [key]: {
+                    foreign: data.foreign ?? '',
+                    japanese: data.japanese ?? '',
+                },
+            }))
         } catch {
-            setAnswer('Something went wrong. Please try again.')
+            setOrderPhrases((prev) => ({
+                ...prev,
+                [key]: { foreign: 'Sorry, please try again.', japanese: 'もう一度お試しください' },
+            }))
         } finally {
-            setLoading(false)
+            setLoadingKey(null)
         }
     }
 
     return (
-        <div
-            className="min-h-screen"
-            style={{ background: tmpl.bg, color: textColor }}
-        >
+        <div className="min-h-screen" style={{ background: tmpl.bg, color: textColor }}>
+
             {/* ヘッダー */}
             <div
-                className="sticky top-0 z-10 flex items-center justify-between px-4 py-3"
+                className="sticky top-0 z-10 px-4 py-3 text-center"
                 style={{ background: tmpl.bg, borderBottom: `1px solid ${borderColor}` }}
             >
-                {/* 言語切り替え */}
-                <div className="flex gap-2">
-                    {selectedLanguages.map((l) => (
-                        <button
-                            key={l}
-                            onClick={() => setLang(l)}
-                            className="rounded px-3 py-1 text-[11px] tracking-wider transition-all"
-                            style={{
-                                background: lang === l ? tmpl.accent : 'transparent',
-                                color: lang === l ? (tmpl.isDark ? '#0d0d0d' : '#fff') : tmpl.accent,
-                                border: `1px solid ${tmpl.accent}`,
-                                opacity: lang === l ? 1 : 0.6,
-                            }}
-                        >
-                            {LANG_LABELS[l] ?? l}
-                        </button>
-                    ))}
-                </div>
-
-                {/* AI質問ボタン */}
-                <button
-                    onClick={() => setChatOpen(!chatOpen)}
-                    className="rounded px-3 py-1 text-[11px] tracking-wider transition-all"
-                    style={{
-                        border: `1px solid ${tmpl.accent}`,
-                        color: tmpl.accent,
-                    }}
+                <span
+                    className="text-[10px] tracking-[0.2em]"
+                    style={{ color: tmpl.accent }}
                 >
-                    {chatOpen ? '✕ Close' : '💬 Ask AI'}
-                </button>
+                    MENU
+                </span>
             </div>
-
-            {/* AI チャットパネル */}
-            {chatOpen && (
-                <div
-                    className="mx-auto max-w-2xl px-4 py-4"
-                    style={{ borderBottom: `1px solid ${borderColor}` }}
-                >
-                    <p className="mb-2 text-[11px]" style={{ color: subTextColor }}>
-                        Ask about any menu item in English
-                    </p>
-                    <div className="flex gap-2">
-                        <input
-                            type="text"
-                            value={question}
-                            onChange={(e) => setQuestion(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleAsk()}
-                            placeholder="e.g. What is wagyu beef?"
-                            className="flex-1 rounded px-3 py-2 text-[12px] outline-none"
-                            style={{
-                                background: tmpl.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-                                border: `1px solid ${borderColor}`,
-                                color: textColor,
-                            }}
-                        />
-                        <button
-                            onClick={handleAsk}
-                            disabled={loading}
-                            className="rounded px-4 py-2 text-[11px] tracking-wider transition-opacity"
-                            style={{
-                                background: tmpl.accent,
-                                color: tmpl.isDark ? '#0d0d0d' : '#fff',
-                                opacity: loading ? 0.5 : 1,
-                            }}
-                        >
-                            {loading ? '...' : 'Ask'}
-                        </button>
-                    </div>
-                    {answer && (
-                        <div
-                            className="mt-3 rounded p-3 text-[12px] leading-relaxed"
-                            style={{
-                                background: tmpl.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                                border: `1px solid ${borderColor}`,
-                                color: textColor,
-                            }}
-                        >
-                            {answer}
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* メニュー本体 */}
             <div className="mx-auto max-w-2xl px-4 py-8">
@@ -185,20 +128,20 @@ export default function MenuDisplay({
                     const jpSection = japaneseData.sections?.[si]
                     return (
                         <div key={si} className="mb-10">
+
                             {/* セクション名 */}
                             <div className="mb-4 flex items-center gap-3">
                                 <div className="h-px flex-1" style={{ background: borderColor }} />
-                                <h2
-                                    className="text-[13px] tracking-[0.2em]"
-                                    style={{ color: tmpl.accent }}
-                                >
-                                    {section.name}
-                                </h2>
-                                {jpSection && (
-                                    <span className="text-[10px]" style={{ color: subTextColor }}>
-                                        {jpSection.name}
-                                    </span>
-                                )}
+                                <div className="text-center">
+                                    <div className="text-[13px] tracking-[0.2em]" style={{ color: tmpl.accent }}>
+                                        {section.name}
+                                    </div>
+                                    {jpSection && (
+                                        <div className="mt-0.5 text-[10px]" style={{ color: subTextColor }}>
+                                            {jpSection.name}
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="h-px flex-1" style={{ background: borderColor }} />
                             </div>
 
@@ -206,41 +149,110 @@ export default function MenuDisplay({
                             <div className="space-y-3">
                                 {section.items.map((item, ii) => {
                                     const jpItem = jpSection?.items?.[ii]
+                                    const key = `${si}-${ii}`
+                                    const qty = getQuantity(key)
+                                    const phrase = orderPhrases[key]
+                                    const isLoading = loadingKey === key
+
                                     return (
                                         <div
                                             key={ii}
-                                            className="flex items-start justify-between gap-4 rounded p-3"
-                                            style={{
-                                                border: `1px solid ${borderColor}`,
-                                                background: tmpl.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
-                                            }}
+                                            className="rounded p-4"
+                                            style={{ border: `1px solid ${borderColor}`, background: cardBg }}
                                         >
-                                            <div className="flex-1">
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className="text-[13px] font-medium">{item.name}</span>
+                                            {/* 品名・価格 */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex-1">
+                                                    <div className="text-[14px] font-medium" style={{ color: textColor }}>
+                                                        {item.name}
+                                                    </div>
                                                     {jpItem && (
-                                                        <span className="text-[10px]" style={{ color: subTextColor }}>
+                                                        <div className="mt-0.5 text-[11px]" style={{ color: subTextColor }}>
                                                             {jpItem.name}
-                                                        </span>
+                                                        </div>
+                                                    )}
+                                                    {item.desc && (
+                                                        <div className="mt-2 text-[11px] leading-relaxed" style={{ color: subTextColor }}>
+                                                            {item.desc}
+                                                        </div>
+                                                    )}
+                                                    {jpItem?.desc && (
+                                                        <div className="mt-0.5 text-[10px] leading-relaxed" style={{ color: subTextColor, opacity: 0.6 }}>
+                                                            {jpItem.desc}
+                                                        </div>
                                                     )}
                                                 </div>
-                                                {item.desc && (
-                                                    <p className="mt-1 text-[11px] leading-relaxed" style={{ color: subTextColor }}>
-                                                        {item.desc}
-                                                    </p>
-                                                )}
-                                                {jpItem?.desc && (
-                                                    <p className="mt-0.5 text-[10px]" style={{ color: subTextColor, opacity: 0.6 }}>
-                                                        {jpItem.desc}
-                                                    </p>
-                                                )}
+                                                <div
+                                                    className="shrink-0 text-[14px] font-medium tabular-nums"
+                                                    style={{ color: tmpl.accent }}
+                                                >
+                                                    ¥{item.price.toLocaleString()}
+                                                </div>
                                             </div>
-                                            <div
-                                                className="shrink-0 text-[13px] font-medium tabular-nums"
-                                                style={{ color: tmpl.accent }}
-                                            >
-                                                ¥{item.price.toLocaleString()}
+
+                                            {/* 数量 + 注文ボタン */}
+                                            <div className="mt-3 flex items-center gap-3">
+                                                {/* 数量コントロール */}
+                                                <div
+                                                    className="flex items-center gap-0"
+                                                    style={{ border: `1px solid ${borderColor}`, borderRadius: '4px' }}
+                                                >
+                                                    <button
+                                                        onClick={() => setQuantity(key, qty - 1)}
+                                                        className="flex h-8 w-8 items-center justify-center text-[14px] transition-opacity"
+                                                        style={{ color: subTextColor, opacity: qty <= 1 ? 0.3 : 1 }}
+                                                        disabled={qty <= 1}
+                                                    >
+                                                        −
+                                                    </button>
+                                                    <span
+                                                        className="w-8 text-center text-[13px] tabular-nums"
+                                                        style={{ color: textColor }}
+                                                    >
+                                                        {qty}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => setQuantity(key, qty + 1)}
+                                                        className="flex h-8 w-8 items-center justify-center text-[14px] transition-opacity"
+                                                        style={{ color: subTextColor }}
+                                                    >
+                                                        ＋
+                                                    </button>
+                                                </div>
+
+                                                {/* 注文フレーズボタン */}
+                                                <button
+                                                    onClick={() => handleOrder(key, item.name, qty)}
+                                                    disabled={isLoading}
+                                                    className="flex-1 py-2 text-[11px] tracking-wider transition-all"
+                                                    style={{
+                                                        border: `1px solid ${tmpl.accent}`,
+                                                        color: tmpl.accent,
+                                                        opacity: isLoading ? 0.5 : 1,
+                                                        borderRadius: '4px',
+                                                    }}
+                                                >
+                                                    {isLoading ? '...' : '🗣 注文する'}
+                                                </button>
                                             </div>
+
+                                            {/* 注文フレーズ表示 */}
+                                            {phrase && (
+                                                <div
+                                                    className="mt-3 rounded p-3"
+                                                    style={{
+                                                        background: tmpl.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                                                        border: `1px solid ${borderColor}`,
+                                                    }}
+                                                >
+                                                    <div className="text-[13px] font-medium" style={{ color: textColor }}>
+                                                        {phrase.foreign}
+                                                    </div>
+                                                    <div className="mt-1 text-[11px]" style={{ color: subTextColor }}>
+                                                        {phrase.japanese}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )
                                 })}
@@ -251,7 +263,7 @@ export default function MenuDisplay({
 
                 {/* フッター */}
                 <div className="mt-12 text-center">
-                    <p className="text-[9px] tracking-widest" style={{ color: subTextColor }}>
+                    <p className="text-[9px] tracking-widest" style={{ color: subTextColor, opacity: 0.5 }}>
                         POWERED BY SHINGO KUMON TOOLS
                     </p>
                 </div>

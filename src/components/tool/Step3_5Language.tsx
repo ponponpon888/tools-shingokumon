@@ -9,14 +9,15 @@ type Props = {
 
 type LangOption = {
     id: string
+    code: string
     label: string
     note: string
 }
 
 const LANG_OPTIONS: LangOption[] = [
-    { id: 'en', label: 'English', note: '外国人の約80%がカバーできます（推奨）' },
-    { id: 'zh', label: '中文（简体字）', note: '訪日中国人・台湾人旅行者に対応' },
-    { id: 'ko', label: '한국어', note: 'リピーターの多い韓国人旅行客に対応' },
+    { id: 'en', code: 'EN', label: 'English', note: '外国人の約80%をカバー（推奨）' },
+    { id: 'zh', code: 'ZH', label: '中文（简体字）', note: '訪日中国人・台湾人旅行者に対応' },
+    { id: 'ko', code: 'KO', label: '한국어', note: 'リピーターの多い韓国人旅行客に対応' },
 ]
 
 const gold = '#c9a84c'
@@ -27,17 +28,11 @@ const textPrimary = '#f0ece4'
 const textMuted = 'rgba(240,236,228,0.45)'
 
 export default function Step3_5Language({ state, update }: Props) {
-    const selected = state?.selectedLanguages ?? ['en']
+    const selected = (state?.selectedLanguages ?? ['en'])[0] ?? 'en'
 
-    const toggle = (id: string) => {
-        if (id === 'en') return
-        const next = selected.includes(id)
-            ? selected.filter((l) => l !== id)
-            : [...selected, id]
-        update({ selectedLanguages: next })
+    const handleSelect = (id: string) => {
+        update({ selectedLanguages: [id] })
     }
-
-    const isAll = selected.includes('en') && selected.includes('zh') && selected.includes('ko')
 
     return (
         <div>
@@ -49,46 +44,44 @@ export default function Step3_5Language({ state, update }: Props) {
                     翻訳する言語を選んでください
                 </h2>
                 <p className="mt-2 text-xs" style={{ color: textMuted }}>
-                    英語は必須です。中国語・韓国語は任意で追加できます。
+                    日本語は常に併記されます。外国語を1つ選んでください。
                 </p>
             </div>
 
             <div className="space-y-3">
                 {LANG_OPTIONS.map((opt) => {
-                    const isSelected = selected.includes(opt.id)
-                    const isRequired = opt.id === 'en'
+                    const isSelected = selected === opt.id
                     return (
                         <button
                             key={opt.id}
-                            onClick={() => toggle(opt.id)}
-                            className="flex w-full items-start gap-4 border p-4 text-left transition-colors"
+                            onClick={() => handleSelect(opt.id)}
+                            className="flex w-full items-center gap-4 border p-4 text-left transition-colors"
                             style={{
                                 borderColor: isSelected ? goldActive : goldBorder,
                                 background: isSelected ? goldFaint : 'transparent',
-                                cursor: isRequired ? 'default' : 'pointer',
                             }}
                         >
+                            {/* 言語コード */}
                             <div
-                                className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center border"
+                                className="flex h-10 w-10 flex-shrink-0 items-center justify-center text-[11px] font-medium tracking-widest"
                                 style={{
-                                    borderColor: isSelected ? gold : goldBorder,
-                                    background: isSelected ? gold : 'transparent',
+                                    border: `1px solid ${isSelected ? gold : goldBorder}`,
+                                    color: isSelected ? gold : textMuted,
+                                    background: isSelected ? 'rgba(201,168,76,0.12)' : 'transparent',
                                 }}
                             >
-                                {isSelected && (
-                                    <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
-                                        <path d="M1 4.5l2.5 2.5 5-5" stroke="#0a0a0a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                )}
+                                {opt.code}
                             </div>
+
+                            {/* テキスト */}
                             <div className="flex-1">
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm font-light" style={{ color: textPrimary }}>
                                         {opt.label}
                                     </span>
-                                    {isRequired && (
+                                    {opt.id === 'en' && (
                                         <span className="text-[9px] tracking-widest" style={{ color: gold }}>
-                                            必須
+                                            推奨
                                         </span>
                                     )}
                                 </div>
@@ -96,16 +89,25 @@ export default function Step3_5Language({ state, update }: Props) {
                                     {opt.note}
                                 </div>
                             </div>
+
+                            {/* ラジオインジケーター */}
+                            <div
+                                className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border"
+                                style={{
+                                    borderColor: isSelected ? gold : goldBorder,
+                                }}
+                            >
+                                {isSelected && (
+                                    <div
+                                        className="h-2 w-2 rounded-full"
+                                        style={{ background: gold }}
+                                    />
+                                )}
+                            </div>
                         </button>
                     )
                 })}
             </div>
-
-            {isAll && (
-                <div className="mt-4 border p-3 text-xs" style={{ borderColor: 'rgba(201,168,76,0.15)', color: textMuted }}>
-                    3言語すべて選択中です。生成に少し時間がかかります。
-                </div>
-            )}
 
             <button
                 onClick={() => update({ step: 5 })}
