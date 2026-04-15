@@ -77,7 +77,9 @@ export default function MenuDisplay({
     const [orderPhrases, setOrderPhrases] = useState<Record<string, OrderPhrase | null>>({})
     const [loadingKey, setLoadingKey] = useState<string | null>(null)
 
-    const currentData: TranslationData = translations?.[lang] ?? { sections: [] }
+    const rawT = translations as any
+    const currentData: TranslationData =
+        rawT?.[lang] ?? (rawT?.sections ? rawT : { sections: [] })
     const japaneseData = contentJson ?? { sections: [] }
 
     const getQuantity = (key: string) => quantities[key] ?? 1
