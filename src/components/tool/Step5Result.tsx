@@ -58,7 +58,7 @@ export default function Step5Result({ state }: Props) {
 
   return (
     <div className="mx-auto max-w-lg">
-      <div className="mb-8 text-center">
+      <div className="mb-6 text-center">
         <div className="mb-2 text-[9px] tracking-[0.25em]" style={{ color: 'rgba(201,168,76,0.45)' }}>
           STEP 05
         </div>
@@ -68,6 +68,28 @@ export default function Step5Result({ state }: Props) {
         <p className="mt-2 text-xs" style={{ color: textMuted }}>
           {state.email} にメールをお送りしました
         </p>
+      </div>
+
+      {/* 不完全感ブロック */}
+      <div
+        className="mb-6 border p-4"
+        style={{ borderColor: 'rgba(201,168,76,0.12)', background: 'rgba(201,168,76,0.04)' }}
+      >
+        <div className="mb-2 text-[9px] tracking-[0.2em]" style={{ color: 'rgba(201,168,76,0.5)' }}>
+          でも、これだけでは取りこぼします
+        </div>
+        <div className="space-y-1">
+          {[
+            '外国人からの質問 → 今は全部手動対応',
+            '予約のやり取り → 今は別で管理',
+            '営業時間外の問い合わせ → 機会損失中',
+          ].map((text, i) => (
+            <div key={i} className="flex items-start gap-2 text-[10px]" style={{ color: textMuted }}>
+              <span style={{ color: 'rgba(201,168,76,0.4)' }}>・</span>
+              {text}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* QRコード + URL */}
@@ -81,7 +103,6 @@ export default function Step5Result({ state }: Props) {
               外国語メニューQRコード
             </div>
 
-            {/* QR画像 */}
             {qrDataUrl ? (
               <div className="mb-4 flex justify-center">
                 <img
@@ -98,7 +119,6 @@ export default function Step5Result({ state }: Props) {
               </div>
             )}
 
-            {/* ボタン */}
             <div className="flex justify-center gap-3">
               <button
                 onClick={handleDownloadQR}
@@ -131,20 +151,12 @@ export default function Step5Result({ state }: Props) {
         )}
       </div>
 
-      {/* スクリーンショット案内 */}
-      <div
-        className="mb-8 border p-4 text-center text-[10px]"
-        style={{ borderColor: 'rgba(255,255,255,0.06)', color: textFaint }}
-      >
-        このQRをテーブルや看板に貼るだけで外国語メニューに対応できます。
-      </div>
-
-      {/* 3択 CTA */}
+      {/* CTA：ストーリー化 */}
       <div
         className="mb-3 text-center text-[9px] tracking-[0.2em]"
         style={{ color: 'rgba(201,168,76,0.4)' }}
       >
-        このメニューをもっと活かすには
+        外国人対応を完結させる
       </div>
 
       <div className="space-y-3">
@@ -155,12 +167,13 @@ export default function Step5Result({ state }: Props) {
           className="flex w-full items-start gap-4 border p-4 transition-colors"
           style={{ borderColor: goldActive, background: goldFaint }}
         >
+          <div className="shrink-0 text-[10px] tracking-widest" style={{ color: gold }}>STEP 1</div>
           <div className="flex-1">
             <div className="text-[11px] font-light" style={{ color: textPrimary }}>
-              ① QRで外国人対応を完成させる
+              QRをテーブル・看板に貼る
             </div>
             <div className="mt-1 text-[10px]" style={{ color: textMuted }}>
-              テーブルや看板にQRを貼るだけで外国語メニューに対応できます
+              外国人がスキャンするだけで多言語メニューを見られます
             </div>
           </div>
           <span className="text-xs" style={{ color: gold }}>→</span>
@@ -173,12 +186,13 @@ export default function Step5Result({ state }: Props) {
           className="flex w-full items-start gap-4 border p-4 transition-colors"
           style={{ borderColor: goldBorder, background: goldFaint }}
         >
+          <div className="shrink-0 text-[10px] tracking-widest" style={{ color: gold }}>STEP 2</div>
           <div className="flex-1">
             <div className="text-[11px] font-light" style={{ color: textPrimary }}>
-              ② LINE予約を自動化する
+              外国人の質問・予約をAIで自動化する
             </div>
             <div className="mt-1 text-[10px]" style={{ color: textMuted }}>
-              24時間AIが予約対応。電話・手動確認なしで予約が入ります
+              24時間・多言語対応。手動確認なしで予約・問い合わせが完結します
             </div>
           </div>
           <span className="text-xs" style={{ color: gold }}>→</span>
@@ -191,12 +205,13 @@ export default function Step5Result({ state }: Props) {
           className="flex w-full items-start gap-4 border p-4 transition-colors"
           style={{ borderColor: goldBorder, background: goldFaint }}
         >
+          <div className="shrink-0 text-[10px] tracking-widest" style={{ color: gold }}>STEP 3</div>
           <div className="flex-1">
             <div className="text-[11px] font-light" style={{ color: textPrimary }}>
-              ③ 外国人向けLPを作る
+              外国人向けの集客まで自動化する
             </div>
             <div className="mt-1 text-[10px]" style={{ color: textMuted }}>
-              多言語対応のランディングページで集客力を高めます
+              多言語LP・SEO対応で、外国人客が自然に集まる仕組みを作ります
             </div>
           </div>
           <span className="text-xs" style={{ color: gold }}>→</span>
