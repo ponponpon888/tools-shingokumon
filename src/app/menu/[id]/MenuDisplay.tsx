@@ -19,6 +19,20 @@ type MenuItem = {
     desc?: string
 }
 
+type JpMenuItem = {
+    name_ja: string
+    name_en?: string
+    price: number
+    desc?: string
+    currency?: string
+    tax_included?: boolean
+}
+
+type JpSection = {
+    name: string
+    items: JpMenuItem[]
+}
+
 type Section = {
     name: string
     items: MenuItem[]
@@ -31,7 +45,7 @@ type TranslationData = {
 type Props = {
     id: string
     templateId: string
-    contentJson: { sections: Section[] }
+    contentJson: { sections: JpSection[] }
     translations: Record<string, TranslationData>
     selectedLanguages: string[]
 }
@@ -166,9 +180,9 @@ export default function MenuDisplay({
                                                     <div className="text-[14px] font-medium" style={{ color: textColor }}>
                                                         {item.name}
                                                     </div>
-                                                    {jpItem && (
+                                                    {jpItem?.name_ja && (
                                                         <div className="mt-0.5 text-[11px]" style={{ color: subTextColor }}>
-                                                            {jpItem.name}
+                                                            {jpItem.name_ja}
                                                         </div>
                                                     )}
                                                     {item.desc && (
