@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const TEMPLATES: Record<string, { bg: string; accent: string; isDark: boolean }> = {
     gold: { bg: '#0d0d0d', accent: '#c9a84c', isDark: true },
@@ -11,6 +11,14 @@ const TEMPLATES: Record<string, { bg: string; accent: string; isDark: boolean }>
     charcoal: { bg: '#2b2b2b', accent: '#e07b54', isDark: true },
     beige: { bg: '#f5ede0', accent: '#8b5e3c', isDark: false },
     pink: { bg: '#fff8f9', accent: '#c0547a', isDark: false },
+}
+
+const VALID_LANGS = ['en', 'zh', 'ko']
+
+const LANG_LABELS: Record<string, string> = {
+    en: 'EN',
+    zh: 'ZH',
+    ko: 'KO',
 }
 
 type MenuItem = {
@@ -55,10 +63,18 @@ type OrderPhrase = {
     japanese: string
 }
 
-const LANG_LABELS: Record<string, string> = {
-    en: 'EN',
-    zh: 'ZH',
-    ko: 'KO',
+// translationsオブジェクトから実際に使える言語を抽出
+function detectAvailableLangs(rawT: any, selectedLanguages: string[]): string[] {
+    if (!rawT || typeof rawT !== 'object') return selectedLanguages
+
+    // 新形式: {"en": {"sections": [...]}, "zh": {...}}
+    const fromTranslations = VALID_LANGS.filter(
+        (k) => rawT[k] && Array.isArray(rawT[k].sections)
+    )
+    if (fromTranslations.length > 0) return fromTranslations
+
+    // 旧形式: {"sections": [...]} → selected_languagesを使う
+    return selectedLanguages
 }
 
 export default function MenuDisplay({
@@ -69,7 +85,22 @@ export default function MenuDisplay({
     selectedLanguages,
 }: Props) {
     const tmpl = TEMPLATES[templateId] ?? TEMPLATES['gold']
-    const [activeLang, setActiveLang] = useState(selectedLanguages[0] ?? 'en')
+
+    const rawT = translations as any
+
+    // 実際に表示可能な言語を translations 実体から判定
+    const langsToShow = detectAvailableLangs(rawT, selectedLanguages)
+    const initialLang = langsToShow[0] ?? selectedLanguages[0] ?? 'en'
+
+    const [activeLang, setActiveLang] = useState(initialLang)
+
+    // langsToShow が変わったとき activeLang が無効になっていたら補正
+    useEffect(() => {
+        if (!langsToShow.includes(activeLang)) {
+            setActiveLang(langsToShow[0] ?? 'en')
+        }
+    }, [translations, selectedLanguages])
+
     const lang = activeLang
 
     const textColor = tmpl.isDark ? '#f0ece4' : '#1a1a1a'
@@ -77,16 +108,14 @@ export default function MenuDisplay({
     const borderColor = tmpl.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
     const cardBg = tmpl.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'
 
-    // 数量管理: key = "si-ii"
     const [quantities, setQuantities] = useState<Record<string, number>>({})
-
-    // 注文フレーズ管理: key = "si-ii"
     const [orderPhrases, setOrderPhrases] = useState<Record<string, OrderPhrase | null>>({})
     const [loadingKey, setLoadingKey] = useState<string | null>(null)
 
-    const rawT = translations as any
+    // 表示データ取得（新形式・旧形式両対応）
     const currentData: TranslationData =
         rawT?.[lang] ?? (rawT?.sections ? rawT : { sections: [] })
+
     const japaneseData = contentJson ?? { sections: [] }
 
     const getQuantity = (key: string) => quantities[key] ?? 1
@@ -137,17 +166,14 @@ export default function MenuDisplay({
                 className="sticky top-0 z-10 flex items-center justify-between px-4 py-3"
                 style={{ background: tmpl.bg, borderBottom: `1px solid ${borderColor}` }}
             >
-                <span
-                    className="text-[10px] tracking-[0.2em]"
-                    style={{ color: tmpl.accent }}
-                >
+                <span className="text-[10px] tracking-[0.2em]" style={{ color: tmpl.accent }}>
                     MENU
                 </span>
 
-                {/* 言語切り替え（2言語以上の場合のみ表示） */}
-                {selectedLanguages.length > 1 && (
+                {/* 言語切り替え（2言語以上のとき表示） */}
+                {langsToShow.length > 1 && (
                     <div className="flex gap-1">
-                        {selectedLanguages.map((l) => (
+                        {langsToShow.map((l) => (
                             <button
                                 key={l}
                                 onClick={() => setActiveLang(l)}
@@ -235,7 +261,6 @@ export default function MenuDisplay({
 
                                             {/* 数量 + 注文ボタン */}
                                             <div className="mt-3 flex items-center gap-3">
-                                                {/* 数量コントロール */}
                                                 <div
                                                     className="flex items-center gap-0"
                                                     style={{ border: `1px solid ${borderColor}`, borderRadius: '4px' }}
@@ -263,7 +288,6 @@ export default function MenuDisplay({
                                                     </button>
                                                 </div>
 
-                                                {/* 注文フレーズボタン */}
                                                 <button
                                                     onClick={() => handleOrder(key, item.name, qty)}
                                                     disabled={isLoading}
@@ -304,7 +328,6 @@ export default function MenuDisplay({
                     )
                 })}
 
-                {/* フッター */}
                 <div className="mt-12 text-center">
                     <p className="text-[9px] tracking-widest" style={{ color: subTextColor, opacity: 0.5 }}>
                         POWERED BY SHINGO KUMON TOOLS
