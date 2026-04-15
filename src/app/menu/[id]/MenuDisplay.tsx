@@ -55,6 +55,12 @@ type OrderPhrase = {
     japanese: string
 }
 
+const LANG_LABELS: Record<string, string> = {
+    en: 'EN',
+    zh: 'ZH',
+    ko: 'KO',
+}
+
 export default function MenuDisplay({
     id,
     templateId,
@@ -63,7 +69,8 @@ export default function MenuDisplay({
     selectedLanguages,
 }: Props) {
     const tmpl = TEMPLATES[templateId] ?? TEMPLATES['gold']
-    const lang = selectedLanguages[0] ?? 'en'
+    const [activeLang, setActiveLang] = useState(selectedLanguages[0] ?? 'en')
+    const lang = activeLang
 
     const textColor = tmpl.isDark ? '#f0ece4' : '#1a1a1a'
     const subTextColor = tmpl.isDark ? 'rgba(240,236,228,0.5)' : 'rgba(30,30,30,0.5)'
@@ -127,7 +134,7 @@ export default function MenuDisplay({
 
             {/* ヘッダー */}
             <div
-                className="sticky top-0 z-10 px-4 py-3 text-center"
+                className="sticky top-0 z-10 flex items-center justify-between px-4 py-3"
                 style={{ background: tmpl.bg, borderBottom: `1px solid ${borderColor}` }}
             >
                 <span
@@ -136,6 +143,26 @@ export default function MenuDisplay({
                 >
                     MENU
                 </span>
+
+                {/* 言語切り替え（2言語以上の場合のみ表示） */}
+                {selectedLanguages.length > 1 && (
+                    <div className="flex gap-1">
+                        {selectedLanguages.map((l) => (
+                            <button
+                                key={l}
+                                onClick={() => setActiveLang(l)}
+                                className="px-2 py-1 text-[10px] tracking-widest transition-all"
+                                style={{
+                                    border: `1px solid ${l === activeLang ? tmpl.accent : borderColor}`,
+                                    color: l === activeLang ? tmpl.accent : subTextColor,
+                                    background: l === activeLang ? `${tmpl.accent}18` : 'transparent',
+                                }}
+                            >
+                                {LANG_LABELS[l] ?? l.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* メニュー本体 */}
