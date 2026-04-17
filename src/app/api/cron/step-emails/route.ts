@@ -25,12 +25,12 @@ export async function GET(req: NextRequest) {
     const targetDate = new Date()
     targetDate.setDate(targetDate.getDate() - schedule.daysAfter)
 
-    // 対象者を取得（登録からN日経過 & このステップ未送信 & 配信停止でない）
+    // 対象者を取得（統合テーブルから取得）
     const { data: contacts } = await supabase
-      .from('contacts')
-      .select('*, shops(*)')
-      .eq('unsubscribed', false)
-      .eq('current_nurture_step', schedule.step - 1)
+      .from('inbound_contacts')
+      .select('*')
+      .eq('contact_type', 'business_lead')
+      .in('status', ['new', 'contacted'])
       .lte('created_at', targetDate.toISOString())
       .limit(100)
 
@@ -38,8 +38,9 @@ export async function GET(req: NextRequest) {
 
     for (const contact of contacts) {
       try {
-        const industry = (contact.shops as { industry?: string }[])?.[0]?.industry || ''
-        const shopName = (contact.shops as { shop_name?: string }[])?.[0]?.shop_name || 'オーナー'
+        // メタデータから業種情報を取得
+        const industry = contact.meta?.industry || ''
+        const shopName = contact.company || contact.name || 'オーナー'
 
         const emailContent = buildStepEmail(schedule.step, shopName, industry)
         if (!emailContent) continue
@@ -51,21 +52,25 @@ export async function GET(req: NextRequest) {
           html: emailContent.html,
         })
 
-        // message_event記録
-        await supabase.from('message_events').insert({
-          contact_id: contact.id,
-          channel: 'email',
-          event_type: schedule.eventType as 'nurture_1' | 'nurture_2' | 'nurture_3' | 'nurture_4',
-          status: 'sent',
-          provider: 'resend',
-        })
+        // message_event記録（既存テーブルがあれば使用、なければスキップ）
+        try {
+          await supabase.from('message_events').insert({
+            contact_id: contact.id,
+            channel: 'email',
+            event_type: schedule.eventType as 'nurture_1' | 'nurture_2' | 'nurture_3' | 'nurture_4',
+            status: 'sent',
+            provider: 'resend',
+          })
+        } catch (err) {
+          console.log('message_events table not found, skipping event log')
+        }
 
-        // current_nurture_step更新
+        // status更新
         await supabase
-          .from('contacts')
+          .from('inbound_contacts')
           .update({
-            current_nurture_step: schedule.step,
-            last_contacted_at: new Date().toISOString(),
+            status: 'contacted',
+            updated_at: new Date().toISOString(),
           })
           .eq('id', contact.id)
 
