@@ -22,6 +22,8 @@ export type ToolState = {
   generatedContent: MenuContent | null
   menuProjectId: string | null
   email: string
+  /** 完成メールを送れたか。送信に失敗しても結果画面は出す。 */
+  emailSent: boolean
   selectedLanguages: string[]
 }
 
@@ -40,6 +42,7 @@ export default function MenuTool() {
     generatedContent: null,
     menuProjectId: null,
     email: '',
+    emailSent: true,
     selectedLanguages: ['en'],
   })
 

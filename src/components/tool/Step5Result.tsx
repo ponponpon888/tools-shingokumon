@@ -26,10 +26,15 @@ export default function Step5Result({ state }: Props) {
     : null
 
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [qrFailed, setQrFailed] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
 
   useEffect(() => {
     if (!menuUrl) return
+
+    let active = true
+    setQrFailed(false)
+
     QRCode.toDataURL(menuUrl, {
       width: 240,
       margin: 2,
@@ -37,16 +42,39 @@ export default function Step5Result({ state }: Props) {
         dark: '#c9a84c',
         light: '#0f0d08',
       },
-    }).then(setQrDataUrl)
+    })
+      .then((dataUrl) => {
+        if (active) setQrDataUrl(dataUrl)
+      })
+      .catch((err) => {
+        // 失敗しても URL は表示できる。QR だけ諦める。
+        console.error('QR generation failed:', err)
+        if (active) setQrFailed(true)
+      })
+
+    return () => {
+      active = false
+    }
   }, [menuUrl])
 
-  const handleCopy = () => {
-    if (menuUrl) {
-      navigator.clipboard.writeText(menuUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+  const handleCopy = async () => {
+    if (!menuUrl) return
+
+    // clipboard は HTTPS 以外や権限拒否で使えない。URL は画面にも出しているので
+    // 失敗したことだけ伝える。
+    try {
+      if (!navigator.clipboard) throw new Error('clipboard API unavailable')
+      await navigator.clipboard.writeText(menuUrl)
+      setCopyState('copied')
+    } catch (err) {
+      console.error('Copy failed:', err)
+      setCopyState('failed')
     }
+    setTimeout(() => setCopyState('idle'), 2000)
   }
+
+  const copyLabel =
+    copyState === 'copied' ? 'コピー済み ✓' : copyState === 'failed' ? 'コピーできません' : 'URLをコピー'
 
   const handleDownloadQR = () => {
     if (!qrDataUrl) return
@@ -66,7 +94,9 @@ export default function Step5Result({ state }: Props) {
           メニューが完成しました
         </h2>
         <p className="mt-2 text-xs" style={{ color: textMuted }}>
-          {state.email} にメールをお送りしました
+          {state.emailSent
+            ? `${state.email} にメールをお送りしました`
+            : 'メールの送信に失敗しました。下のURLとQRコードはそのままお使いいただけます。'}
         </p>
       </div>
 
@@ -115,7 +145,9 @@ export default function Step5Result({ state }: Props) {
               </div>
             ) : (
               <div className="mb-4 flex h-40 items-center justify-center">
-                <span className="text-[10px]" style={{ color: textFaint }}>生成中...</span>
+                <span className="text-[10px]" style={{ color: textFaint }}>
+                  {qrFailed ? 'QRコードを作れませんでした。下のURLをお使いください。' : '生成中...'}
+                </span>
               </div>
             )}
 
@@ -131,9 +163,9 @@ export default function Step5Result({ state }: Props) {
               <button
                 onClick={handleCopy}
                 className="border px-5 py-2 text-[10px] tracking-widest transition-colors"
-                style={{ borderColor: goldBorder, color: copied ? gold : textMuted }}
+                style={{ borderColor: goldBorder, color: copyState === 'copied' ? gold : textMuted }}
               >
-                {copied ? 'コピー済み ✓' : 'URLをコピー'}
+                {copyLabel}
               </button>
             </div>
 
@@ -160,24 +192,42 @@ export default function Step5Result({ state }: Props) {
       </div>
 
       <div className="space-y-3">
-        <a
-          href={menuUrl ?? '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-full items-start gap-4 border p-4 transition-colors"
-          style={{ borderColor: goldActive, background: goldFaint }}
-        >
-          <div className="shrink-0 text-[10px] tracking-widest" style={{ color: gold }}>STEP 1</div>
-          <div className="flex-1">
-            <div className="text-[11px] font-light" style={{ color: textPrimary }}>
-              QRをテーブル・看板に貼る
+        {/* menuUrl が無いときはリンクにしない（"#" を新規タブで開いてしまうため）。 */}
+        {menuUrl ? (
+          <a
+            href={menuUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-start gap-4 border p-4 transition-colors"
+            style={{ borderColor: goldActive, background: goldFaint }}
+          >
+            <div className="shrink-0 text-[10px] tracking-widest" style={{ color: gold }}>STEP 1</div>
+            <div className="flex-1">
+              <div className="text-[11px] font-light" style={{ color: textPrimary }}>
+                QRをテーブル・看板に貼る
+              </div>
+              <div className="mt-1 text-[10px]" style={{ color: textMuted }}>
+                外国人がスキャンするだけで多言語メニューを見られます
+              </div>
             </div>
-            <div className="mt-1 text-[10px]" style={{ color: textMuted }}>
-              外国人がスキャンするだけで多言語メニューを見られます
+            <span className="text-xs" style={{ color: gold }}>→</span>
+          </a>
+        ) : (
+          <div
+            className="flex w-full items-start gap-4 border p-4"
+            style={{ borderColor: goldBorder, background: goldFaint }}
+          >
+            <div className="shrink-0 text-[10px] tracking-widest" style={{ color: textFaint }}>STEP 1</div>
+            <div className="flex-1">
+              <div className="text-[11px] font-light" style={{ color: textMuted }}>
+                QRをテーブル・看板に貼る
+              </div>
+              <div className="mt-1 text-[10px]" style={{ color: textFaint }}>
+                メニューページの準備ができると、ここにリンクが出ます
+              </div>
             </div>
           </div>
-          <span className="text-xs" style={{ color: gold }}>→</span>
-        </a>
+        )}
 
         <a
           href={MUSUBU_URL}

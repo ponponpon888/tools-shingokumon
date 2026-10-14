@@ -1,106 +1,286 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, translationModel } from '@/lib/anthropic'
+import { buildDay0Email } from '@/lib/day0-email'
+import { MissingApiKeyError } from '@/lib/errors'
+import { fingerprint } from '@/lib/fingerprint'
+import { findReusableProject, type Client } from '@/lib/menu-project'
+import {
+  enforceRateLimit,
+  generateRules,
+  rateLimitResponseInit,
+  readClientIp,
+} from '@/lib/rate-limit'
+import { getResend, fromAddress } from '@/lib/resend'
 import { createServiceClient } from '@/lib/supabase'
-import { Resend } from 'resend'
-import type { MenuContent } from '@/types/database'
+import { formatIssues, generateRequestSchema } from '@/lib/validation'
+import type { Database, MenuContent, MenuStatus } from '@/types/database'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-const resend = new Resend(process.env.RESEND_API_KEY)
+const EXPIRY_DAYS = 90
+/** PostgreSQL の unique 制約違反。 */
+const UNIQUE_VIOLATION = '23505'
 
 export async function POST(req: NextRequest) {
-  const supabase = createServiceClient()
-
+  let body: unknown
   try {
-    const {
-      email,
-      shopName,
-      industry,
-      industryOther,
-      templateId,
-      content,
-      inputMode,
-      selectedLanguages = ['en'],
-    } = await req.json()
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
-    // 1. 翻訳（選択言語のみ）
-    const translations = await translateMenu(content, selectedLanguages)
+  const parsed = generateRequestSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid request', detail: formatIssues(parsed.error) },
+      { status: 400 }
+    )
+  }
 
-    // 2. contact upsert
-    const { data: contact, error: contactError } = await supabase
-      .from('contacts')
-      .upsert(
-        {
-          email: email.toLowerCase().trim(),
-          source_tool_first: 'menu',
-          consent_marketing: true,
-        },
-        { onConflict: 'email', ignoreDuplicates: false }
-      )
-      .select()
-      .single()
+  const input = parsed.data
+  // 正規化後の値からハッシュを取る。キー順や言語の並びに左右されない。
+  const requestFingerprint = fingerprint(input)
 
-    if (contactError) throw contactError
+  let supabase: Client
+  try {
+    supabase = createServiceClient()
+  } catch (error) {
+    console.error('Generate: supabase unavailable:', error)
+    return NextResponse.json({ error: 'Storage is not configured' }, { status: 503 })
+  }
 
-    // 3. shop insert
-    const { data: shop, error: shopError } = await supabase
-      .from('shops')
-      .insert({
-        contact_id: (contact as { id: string }).id,
-        shop_name: shopName,
-        industry: industry || null,
-        industry_other: industryOther || null,
+  // 1. 同じ入力が既に処理済みなら、翻訳も課金も発生させずに返す。
+  //    期限切れの行は対象外。再利用すると見られない URL を送ることになる。
+  const lookup = await findReusableProject(supabase, requestFingerprint)
+  if (lookup.error) {
+    console.error('Generate: fingerprint lookup failed:', lookup.error)
+    return NextResponse.json({ error: 'Storage is unavailable' }, { status: 503 })
+  }
+
+  if (lookup.project) {
+    // メールが送れている場合は、何もせず同じ ID を返す（二重作成しない）。
+    if (lookup.project.status === 'generated') {
+      return NextResponse.json({
+        menuProjectId: lookup.project.id,
+        emailSent: true,
+        reused: true,
       })
-      .select()
-      .single()
+    }
 
-    if (shopError) throw shopError
+    // 送信に失敗して残っている場合だけ、レート制限を通してから再送する。
+    const retryLimit = await enforceRateLimit(
+      'generate',
+      generateRules(readClientIp(req.headers), input.email)
+    )
+    if (!retryLimit.ok) {
+      const init = rateLimitResponseInit(retryLimit)
+      return NextResponse.json(init.body, { status: init.status, headers: init.headers })
+    }
 
-    // 4. menu_project insert
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 90)
-
-    const { data: menuProject, error: menuError } = await supabase
-      .from('menu_projects')
-      .insert({
-        shop_id: (shop as { id: string }).id,
-        template_id: templateId,
-        input_mode: inputMode,
-        content_json: content,
-        translations,
-        selected_languages: selectedLanguages,
-        status: 'generated',
-        expires_at: expiresAt.toISOString(),
-      } as never)
-      .select()
-      .single()
-
-    if (menuError) throw menuError
-
-    const projectId = (menuProject as { id: string }).id
-
-    // 5. メール送信（Day 0）
-    await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
-      to: email,
-      subject: `【完成】${shopName}様の多言語メニューが完成しました`,
-      html: buildDay0Email(shopName, projectId, selectedLanguages),
+    const resent = await deliverAndRecord(supabase, {
+      projectId: lookup.project.id,
+      contactId: lookup.project.contactId,
+      email: input.email,
+      shopName: input.shopName,
+      selectedLanguages: input.selectedLanguages,
     })
 
-    // 6. message_event 記録
-    await supabase.from('message_events').insert({
-      contact_id: (contact as { id: string }).id,
-      menu_project_id: projectId,
-      channel: 'email',
-      event_type: 'deliver_pdf',
-      status: 'sent',
-      provider: 'resend',
-    } as never)
-
-    return NextResponse.json({ menuProjectId: projectId })
-  } catch (error) {
-    console.error('Generate error:', error)
-    return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
+    return NextResponse.json({
+      menuProjectId: lookup.project.id,
+      emailSent: resent,
+      reused: true,
+    })
   }
+
+  // 2. レート制限。ここを通らないと Anthropic / Resend は呼ばない。
+  const limit = await enforceRateLimit(
+    'generate',
+    generateRules(readClientIp(req.headers), input.email)
+  )
+  if (!limit.ok) {
+    const init = rateLimitResponseInit(limit)
+    return NextResponse.json(init.body, { status: init.status, headers: init.headers })
+  }
+
+  // 3. 翻訳。失敗した時点で返すので、DB には何も書かれない。
+  let translations: Record<string, unknown>
+  try {
+    translations = await translateMenu(input.content, input.selectedLanguages)
+  } catch (error) {
+    if (error instanceof MissingApiKeyError) {
+      console.error('Generate: missing env', error.envName)
+      return NextResponse.json({ error: 'Translation is not configured' }, { status: 503 })
+    }
+    console.error('Generate: translation failed:', error)
+    return NextResponse.json({ error: 'Translation upstream failed' }, { status: 502 })
+  }
+
+  // 翻訳には数秒かかる。その間に同じ入力が走り切っていないか、書く直前にもう一度見る。
+  const recheck = await findReusableProject(supabase, requestFingerprint)
+  if (recheck.project) {
+    return NextResponse.json({
+      menuProjectId: recheck.project.id,
+      emailSent: recheck.project.status === 'generated',
+      reused: true,
+    })
+  }
+
+  // 4. contact
+  const { data: contact, error: contactError } = await supabase
+    .from('contacts')
+    .upsert(
+      {
+        email: input.email,
+        source_tool_first: 'menu',
+        consent_marketing: true,
+      },
+      { onConflict: 'email', ignoreDuplicates: false }
+    )
+    .select('id')
+    .single()
+
+  if (contactError || !contact) {
+    console.error('Generate: contact upsert failed:', contactError)
+    return NextResponse.json({ error: 'Could not save your contact' }, { status: 500 })
+  }
+
+  // 5. shop
+  const { data: shop, error: shopError } = await supabase
+    .from('shops')
+    .insert({
+      contact_id: contact.id,
+      shop_name: input.shopName,
+      industry: input.industry || null,
+      industry_other: input.industryOther || null,
+    })
+    .select('id')
+    .single()
+
+  if (shopError || !shop) {
+    console.error('Generate: shop insert failed:', shopError)
+    return NextResponse.json({ error: 'Could not save your shop' }, { status: 500 })
+  }
+
+  // 6. menu_project
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + EXPIRY_DAYS)
+
+  const { data: menuProject, error: menuError } = await supabase
+    .from('menu_projects')
+    .insert({
+      shop_id: shop.id,
+      template_id: input.templateId,
+      input_mode: input.inputMode,
+      content_json: input.content,
+      translations: translations as Database['public']['Tables']['menu_projects']['Insert']['translations'],
+      selected_languages: input.selectedLanguages,
+      request_fingerprint: requestFingerprint,
+      status: 'email_pending',
+      expires_at: expiresAt.toISOString(),
+    })
+    .select('id')
+    .single()
+
+  if (menuError || !menuProject) {
+    // 同時に同じ入力が来た場合は unique 制約で弾かれる。先に入った行を返す。
+    if (menuError?.code === UNIQUE_VIOLATION) {
+      const raced = await findReusableProject(supabase, requestFingerprint)
+      if (raced.project) {
+        return NextResponse.json({
+          menuProjectId: raced.project.id,
+          emailSent: raced.project.status === 'generated',
+          reused: true,
+        })
+      }
+    }
+    console.error('Generate: menu_project insert failed:', menuError)
+    return NextResponse.json({ error: 'Could not save your menu' }, { status: 500 })
+  }
+
+  // 7. メール送信。失敗しても status に残して 200 を返す（行だけ残って 500 にしない）。
+  const emailSent = await deliverAndRecord(supabase, {
+    projectId: menuProject.id,
+    contactId: contact.id,
+    email: input.email,
+    shopName: input.shopName,
+    selectedLanguages: input.selectedLanguages,
+  })
+
+  return NextResponse.json({
+    menuProjectId: menuProject.id,
+    emailSent,
+    reused: false,
+  })
+}
+
+/**
+ * 完成メールを送り、結果を menu_projects.status と message_events に残す。
+ * 送れたかどうかだけを返す。例外は投げない。
+ */
+async function deliverAndRecord(
+  supabase: Client,
+  args: {
+    projectId: string
+    contactId: string | null
+    email: string
+    shopName: string
+    selectedLanguages: string[]
+  }
+): Promise<boolean> {
+  const { subject, html } = buildDay0Email({
+    shopName: args.shopName,
+    menuProjectId: args.projectId,
+    selectedLanguages: args.selectedLanguages,
+  })
+
+  let providerMessageId: string | null = null
+  let failure: string | null = null
+
+  try {
+    const { data, error } = await getResend().emails.send({
+      from: fromAddress(),
+      to: args.email,
+      subject,
+      html,
+    })
+    if (error) {
+      failure = error.message
+    } else {
+      providerMessageId = data?.id ?? null
+    }
+  } catch (error) {
+    failure = error instanceof Error ? error.message : 'unknown send error'
+  }
+
+  const status: MenuStatus = failure ? 'email_failed' : 'generated'
+
+  const { error: statusError } = await supabase
+    .from('menu_projects')
+    .update({ status })
+    .eq('id', args.projectId)
+
+  if (statusError) {
+    console.error('Generate: status update failed:', statusError.message)
+  }
+
+  const { error: eventError } = await supabase.from('message_events').insert({
+    contact_id: args.contactId,
+    menu_project_id: args.projectId,
+    channel: 'email',
+    event_type: 'deliver_pdf',
+    status: failure ? 'failed' : 'sent',
+    provider: 'resend',
+    provider_message_id: providerMessageId,
+    error_message: failure,
+  })
+
+  if (eventError) {
+    console.error('Generate: message_event insert failed:', eventError.message)
+  }
+
+  if (failure) {
+    console.error('Generate: email send failed:', failure)
+  }
+
+  return failure === null
 }
 
 const LANG_NAMES: Record<string, string> = {
@@ -113,7 +293,7 @@ async function translateMenu(
   content: MenuContent,
   selectedLanguages: string[]
 ): Promise<Record<string, unknown>> {
-  const langList = selectedLanguages.map((l) => LANG_NAMES[l] ?? l).join('・')
+  const langList = selectedLanguages.map((lang) => LANG_NAMES[lang] ?? lang).join('・')
 
   const prompt = `以下のメニューデータを${langList}に翻訳してください。
 料理名・メニュー名は飲食・サービス業で一般的に使われる自然な表現にしてください。
@@ -136,64 +316,27 @@ ${JSON.stringify(content, null, 2)}
 
 選択された言語のみ出力してください。`
 
-  const message = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const message = await getAnthropic().messages.create({
+    model: translationModel(),
     max_tokens: 6000,
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const text = message.content[0].type === 'text' ? message.content[0].text : '{}'
+  const text = message.content
+    .map((block) => (block.type === 'text' ? block.text : ''))
+    .join('')
+
   const clean = text.replace(/```json|```/g, '').trim()
 
   try {
-    return JSON.parse(clean)
+    const parsed: unknown = JSON.parse(clean)
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
   } catch {
-    console.error('Translation parse error:', clean)
-    return {}
+    // 翻訳が壊れていても、メニュー自体は日本語で成立する。空で進める。
   }
-}
 
-const LANG_LABEL_JA: Record<string, string> = {
-  en: '英語',
-  zh: '中国語',
-  ko: '韓国語',
-}
-
-function buildDay0Email(
-  shopName: string,
-  menuProjectId: string,
-  selectedLanguages: string[]
-): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://tools.shingokumon.com'
-  const langText = selectedLanguages.map((l) => LANG_LABEL_JA[l] ?? l).join('・')
-
-  return `<!DOCTYPE html>
-<html lang="ja">
-<head><meta charset="UTF-8"></head>
-<body style="background:#080808;color:#f0ece4;font-family:sans-serif;padding:40px 20px;max-width:600px;margin:0 auto;">
-  <div style="border:1px solid rgba(201,168,76,0.15);padding:40px;">
-    <div style="font-size:11px;letter-spacing:3px;color:rgba(201,168,76,0.5);margin-bottom:24px;">
-      TOOLS.SHINGOKUMON.COM
-    </div>
-    <h1 style="font-size:20px;font-weight:300;color:#f0ece4;margin-bottom:12px;">
-      ${shopName}様の多言語メニューが完成しました
-    </h1>
-    <p style="font-size:13px;color:rgba(240,236,228,0.5);line-height:1.9;margin-bottom:32px;">
-      ご利用ありがとうございます。<br>
-      ${langText}に対応したメニューが完成しました。<br>
-      後からメニューの編集・改善も可能です。
-    </p>
-    <div style="border:1px solid rgba(201,168,76,0.15);padding:20px;margin-bottom:32px;text-align:center;">
-      <a href="${appUrl}/menu/${menuProjectId}"
-         style="display:inline-block;border:1px solid rgba(201,168,76,0.45);color:#c9a84c;padding:12px 32px;font-size:12px;letter-spacing:2px;text-decoration:none;">
-        メニューを確認する
-      </a>
-    </div>
-    <p style="font-size:11px;color:rgba(240,236,228,0.25);margin-top:40px;border-top:1px solid rgba(201,168,76,0.08);padding-top:20px;">
-      このメールは tools.shingokumon.com からお送りしています。<br>
-      配信停止をご希望の場合は <a href="${appUrl}/unsubscribe?id=${menuProjectId}" style="color:rgba(201,168,76,0.4);">こちら</a>
-    </p>
-  </div>
-</body>
-</html>`
+  console.error('Generate: translation response was not usable JSON')
+  return {}
 }

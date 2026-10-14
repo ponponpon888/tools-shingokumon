@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { ALLOWED_MEDIA_TYPES, MAX_IMAGE_BYTES, isAllowedMediaType } from '@/lib/limits'
 import type { ToolState } from './MenuTool'
 
 type Props = {
@@ -15,6 +16,17 @@ export default function Step1Upload({ state, update }: Props) {
 
   const handleFile = async (file: File) => {
     setError(null)
+
+    // サーバー側と同じ条件を先に見て、無駄なアップロードを避ける。
+    if (!isAllowedMediaType(file.type)) {
+      setError('JPEG・PNG・WebP の画像を選んでください。')
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError(`画像が大きすぎます（上限 ${Math.floor(MAX_IMAGE_BYTES / 1024 / 1024)}MB）。`)
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -33,9 +45,18 @@ export default function Step1Upload({ state, update }: Props) {
         body: JSON.stringify({ imageBase64: base64, mediaType: file.type }),
       })
 
-      if (!res.ok) throw new Error('読み取りに失敗しました')
+      if (res.status === 429 || res.status === 503) {
+        setError('ただいま混み合っています。しばらく待ってからお試しください。')
+        return
+      }
+      if (!res.ok) throw new Error(`OCR failed with status ${res.status}`)
 
-      const { content, shopName } = await res.json()
+      const { content, shopName, truncated } = await res.json()
+
+      if (truncated) {
+        // 途中で切れた応答から復元した場合。末尾の品目が欠けていることがある。
+        setError('品目が多く、一部を読み取れなかった可能性があります。次の画面で確認してください。')
+      }
 
       update({
         inputMode: 'image_ocr',
@@ -135,7 +156,7 @@ export default function Step1Upload({ state, update }: Props) {
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept={ALLOWED_MEDIA_TYPES.join(',')}
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0]

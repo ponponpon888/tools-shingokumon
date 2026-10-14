@@ -37,7 +37,9 @@ type JpMenuItem = {
 }
 
 type JpSection = {
-    name: string
+    // content_json に入っているのは name_ja。name は古い行のための保険。
+    name_ja?: string
+    name?: string
     items: JpMenuItem[]
 }
 
@@ -205,9 +207,9 @@ export default function MenuDisplay({
                                     <div className="text-[13px] tracking-[0.2em]" style={{ color: tmpl.accent }}>
                                         {section.name}
                                     </div>
-                                    {jpSection && (
+                                    {jpSection && (jpSection.name_ja || jpSection.name) && (
                                         <div className="mt-0.5 text-[10px]" style={{ color: subTextColor }}>
-                                            {jpSection.name}
+                                            {jpSection.name_ja || jpSection.name}
                                         </div>
                                     )}
                                 </div>

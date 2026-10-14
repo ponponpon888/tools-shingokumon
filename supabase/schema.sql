@@ -40,6 +40,10 @@ CREATE TABLE menu_projects (
   template_id text NOT NULL,
   input_mode text,
   content_json jsonb NOT NULL,
+  translations jsonb,
+  selected_languages text[],
+  -- 同じ入力の再送を見分けるための sha256。二重作成を防ぐ。
+  request_fingerprint text,
   status text DEFAULT 'draft',
   expires_at timestamptz NOT NULL,
   updated_at timestamptz DEFAULT now(),
@@ -71,6 +75,16 @@ CREATE TABLE message_events (
   sent_at timestamptz DEFAULT now()
 );
 
+-- ⑥ rate_limit_events（公開APIのレート制限カウント）
+-- subject には IP・メールの sha256 だけを入れる（生の値は保存しない）
+CREATE TABLE rate_limit_events (
+  id bigserial PRIMARY KEY,
+  bucket text NOT NULL,
+  subject_type text NOT NULL,
+  subject text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- updated_at 自動更新 trigger
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$
@@ -98,6 +112,7 @@ ALTER TABLE shops ENABLE ROW LEVEL SECURITY;
 ALTER TABLE menu_projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE message_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rate_limit_events ENABLE ROW LEVEL SECURITY;
 
 -- 全テーブル service_role のみ（Edge Function経由）
 CREATE POLICY contacts_service ON contacts FOR ALL TO service_role USING (true);
@@ -105,9 +120,15 @@ CREATE POLICY shops_service ON shops FOR ALL TO service_role USING (true);
 CREATE POLICY menu_projects_service ON menu_projects FOR ALL TO service_role USING (true);
 CREATE POLICY assets_service ON assets FOR ALL TO service_role USING (true);
 CREATE POLICY message_events_service ON message_events FOR ALL TO service_role USING (true);
+CREATE POLICY rate_limit_events_service ON rate_limit_events FOR ALL TO service_role USING (true);
 
 -- インデックス
 CREATE INDEX idx_contacts_email ON contacts(email);
 CREATE INDEX idx_contacts_nurture ON contacts(current_nurture_step, created_at) WHERE unsubscribed = false;
 CREATE INDEX idx_menu_projects_status ON menu_projects(status, expires_at);
 CREATE INDEX idx_message_events_contact ON message_events(contact_id, event_type);
+CREATE UNIQUE INDEX uq_menu_projects_request_fingerprint
+  ON menu_projects(request_fingerprint) WHERE request_fingerprint IS NOT NULL;
+CREATE INDEX idx_rate_limit_lookup
+  ON rate_limit_events(bucket, subject_type, subject, created_at DESC);
+CREATE INDEX idx_rate_limit_created_at ON rate_limit_events(created_at);
