@@ -1,5 +1,3 @@
-import Link from 'next/link'
-
 export default function Hero() {
   return (
     <section className="relative z-10 mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-8 py-16 md:grid-cols-2 md:gap-16 md:px-12 md:py-20">
@@ -37,21 +35,21 @@ export default function Hero() {
           印刷してそのまま使えます。翻訳会社もデザイナーも不要。
         </p>
 
-        {/* CTA */}
-        <Link
-          href="/tools/menu"
-          className="inline-flex items-center gap-3 border px-8 py-4 text-xs tracking-[0.15em] transition-colors hover:bg-gold-faint"
-          style={{ borderColor: 'rgba(201,168,76,0.45)', color: '#c9a84c' }}
+        {/* 停止中の案内（旧 CTA の位置） */}
+        <div
+          className="inline-block border px-8 py-4"
+          style={{ borderColor: 'rgba(201,168,76,0.2)', background: 'rgba(201,168,76,0.03)' }}
         >
-          無料でメニューPDFを作る
-          <span className="text-sm">→</span>
-        </Link>
-        <p
-          className="mt-4 text-center text-[11px] md:text-left"
-          style={{ color: 'rgba(240,236,228,0.2)' }}
-        >
-          口コミ返信・集客診断など、他のツールも無料
-        </p>
+          <div
+            className="mb-1 text-[10px] tracking-[0.2em]"
+            style={{ color: 'rgba(201,168,76,0.55)' }}
+          >
+            このツールは停止中です
+          </div>
+          <div className="text-[11px] leading-relaxed" style={{ color: 'rgba(240,236,228,0.35)' }}>
+            バックエンドの Supabase プロジェクトを終了したため、新しいメニューは作成できません。
+          </div>
+        </div>
       </div>
 
       {/* 右：プレビューカード */}

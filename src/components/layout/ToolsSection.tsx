@@ -1,5 +1,3 @@
-import Link from 'next/link'
-
 const subTools = [
   { tag: '2本目 · 準備中', title: 'Google口コミ返信AI', desc: '口コミをペーストするだけで返信文を生成。' },
   { tag: '3本目 · 準備中', title: 'Google集客診断', desc: 'Googleマップ上の改善点を即提示。' },
@@ -38,7 +36,7 @@ export default function ToolsSection() {
             className="mb-4 text-[8px] tracking-[0.2em]"
             style={{ color: 'rgba(201,168,76,0.4)' }}
           >
-            看板ツール · MVP
+            看板ツール · 停止中
           </div>
           <h3
             className="mb-3 text-xl font-light leading-snug"
@@ -55,13 +53,18 @@ export default function ToolsSection() {
             日本語のメニュー表を写真でアップするだけ。AIが内容を読み取り、
             英語・中国語・韓国語のメニュー表を自動生成。印刷してそのまま使えます。
           </p>
-          <Link
-            href="/tools/menu"
-            className="inline-flex items-center gap-2 border px-6 py-3 text-[11px] tracking-wider transition-colors"
-            style={{ borderColor: 'rgba(201,168,76,0.35)', color: '#c9a84c' }}
+          <div
+            className="border px-6 py-3"
+            style={{ borderColor: 'rgba(201,168,76,0.15)', background: 'rgba(201,168,76,0.03)' }}
           >
-            無料で試す →
-          </Link>
+            <div className="mb-1 text-[10px] tracking-wider" style={{ color: 'rgba(201,168,76,0.5)' }}>
+              停止中
+            </div>
+            <div className="text-[11px] leading-relaxed" style={{ color: 'rgba(240,236,228,0.3)' }}>
+              バックエンドの Supabase プロジェクトを終了したため、このツールは利用できません。
+              コードと設計は参照用に公開しています。
+            </div>
+          </div>
         </div>
         <div className="p-8" style={{ background: '#0a0a0a' }}>
           {/* サンプルプレビュー */}
