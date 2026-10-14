@@ -1,30 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropic, ocrModel } from '@/lib/anthropic'
+import { MissingApiKeyError } from '@/lib/errors'
+import { extractMenu } from '@/lib/ocr-parse'
+import {
+  enforceRateLimit,
+  ocrRules,
+  rateLimitResponseInit,
+  readClientIp,
+} from '@/lib/rate-limit'
+import { formatIssues, ocrRequestSchema } from '@/lib/validation'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const MAX_TOKENS = 8000
 
-export async function POST(req: NextRequest) {
-  try {
-    const { imageBase64, mediaType } = await req.json()
-
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
-      max_tokens: 8000,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType || 'image/jpeg',
-                data: imageBase64,
-              },
-            },
-            {
-              type: 'text',
-              text: `このメニュー表の画像を読み取ってください。
+const PROMPT = `このメニュー表の画像を読み取ってください。
 JSON形式に近い形で出力してください。途中で切れても構いません。
 店名が読み取れる場合はshopNameに入れてください。
 カテゴリ（セクション）ごとに品目をグループ化してください。
@@ -44,80 +32,90 @@ JSON形式に近い形で出力してください。途中で切れても構い�
       ]
     }
   ]
-}`,
+}`
+
+export async function POST(req: NextRequest) {
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const parsed = ocrRequestSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid request', detail: formatIssues(parsed.error) },
+      { status: 400 }
+    )
+  }
+
+  const limit = await enforceRateLimit('ocr', ocrRules(readClientIp(req.headers)))
+  if (!limit.ok) {
+    const init = rateLimitResponseInit(limit)
+    return NextResponse.json(init.body, { status: init.status, headers: init.headers })
+  }
+
+  const { imageBase64, mediaType } = parsed.data
+
+  let responseText: string
+  let truncated: boolean
+
+  try {
+    const anthropic = getAnthropic()
+    const message = await anthropic.messages.create({
+      model: ocrModel(),
+      max_tokens: MAX_TOKENS,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType, data: imageBase64 },
             },
+            { type: 'text', text: PROMPT },
           ],
         },
       ],
     })
 
-    const text = message.content[0].type === 'text' ? message.content[0].text : ''
+    responseText = message.content
+      .map((block) => (block.type === 'text' ? block.text : ''))
+      .join('')
 
-    const match = text.match(/\{[\s\S]*\}/)
-    if (!match) {
-      console.error('OCR: JSON not found. Raw text (first 300):', text.slice(0, 300))
-      throw new Error('JSON extraction failed')
-    }
-
-    // サニタイズ：改行・タブ・連続スペースを除去
-    const sanitized = match[0]
-      .replace(/[\n\r\t]/g, ' ')
-      .replace(/ +/g, ' ')
-
-    // salvage処理：パース失敗時に末尾の不完全部分を除去して再試行
-    const parsed = safeParse(sanitized)
-    if (!parsed) {
-      console.error('OCR: salvage failed. Sanitized (first 300):', sanitized.slice(0, 300))
-      throw new Error('JSON parse failed')
-    }
-
-    const content = {
-      sections: (parsed.sections || []).map((s: { name_ja?: string; items?: { name_ja?: string; price?: number }[] }, i: number) => ({
-        name_ja: s.name_ja || 'メニュー',
-        name_en: '',
-        name_zh: '',
-        name_ko: '',
-        sort_order: i,
-        items: (s.items || []).map((item: { name_ja?: string; price?: number }) => ({
-          name_ja: item.name_ja || '',
-          name_en: '',
-          name_zh: '',
-          name_ko: '',
-          price: Number(item.price) || 0,
-          currency: 'JPY',
-          tax_included: true,
-        })),
-      })),
-    }
-
-    return NextResponse.json({ content, shopName: parsed.shopName || '' })
+    // max_tokens で打ち切られた応答は JSON が閉じていない。
+    // 復元して返せるので、ここでは失敗にせず印だけ付ける。
+    truncated = message.stop_reason === 'max_tokens'
   } catch (error) {
-    console.error('OCR error:', error)
-    return NextResponse.json({ error: 'OCR failed' }, { status: 500 })
-  }
-}
-
-// salvage：パース失敗時に末尾の不完全な部分を除去して再試行
-function safeParse(text: string): Record<string, unknown> | null {
-  // 試行1：そのままパース
-  try {
-    return JSON.parse(text)
-  } catch { /* fall through */ }
-
-  // 試行2：末尾の不完全なプロパティを除去
-  try {
-    const trimmed = text.replace(/,\s*[^,}\]]*$/, '')
-    const closed = trimmed + '}]}'
-    return JSON.parse(closed)
-  } catch { /* fall through */ }
-
-  // 試行3：sectionsだけ救出
-  try {
-    const sectionsMatch = text.match(/"sections"\s*:\s*\[[\s\S]*/)
-    if (sectionsMatch) {
-      return { shopName: '', sections: [] }
+    if (error instanceof MissingApiKeyError) {
+      console.error('OCR: missing env', error.envName)
+      return NextResponse.json({ error: 'OCR is not configured' }, { status: 503 })
     }
-  } catch { /* fall through */ }
+    console.error('OCR: upstream call failed:', error)
+    return NextResponse.json({ error: 'OCR upstream failed' }, { status: 502 })
+  }
 
-  return null
+  const result = extractMenu(responseText)
+  if (!result.ok) {
+    console.error('OCR: extraction failed', { reason: result.reason, truncated })
+    return NextResponse.json(
+      {
+        error: 'Could not read the menu from this image',
+        reason: result.reason,
+        truncated,
+      },
+      { status: 422 }
+    )
+  }
+
+  const { extraction } = result
+
+  return NextResponse.json({
+    content: extraction.content,
+    shopName: extraction.shopName,
+    // 品目が欠けている可能性をクライアントに伝える。
+    truncated: truncated || extraction.salvaged,
+    itemCount: extraction.itemCount,
+  })
 }

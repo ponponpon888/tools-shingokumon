@@ -65,7 +65,15 @@ export default function Step4Generate({ state, update }: Props) {
                 }),
             })
 
-            if (!res.ok) throw new Error('生成に失敗しました')
+            if (res.status === 429) {
+                setError('短時間に何度も実行されています。しばらく待ってからお試しください。')
+                return
+            }
+            if (res.status === 503) {
+                setError('ただいま混み合っています。しばらく待ってからお試しください。')
+                return
+            }
+            if (!res.ok) throw new Error(`generate failed with status ${res.status}`)
 
             const data = await res.json()
 
@@ -75,6 +83,7 @@ export default function Step4Generate({ state, update }: Props) {
                 industryOther,
                 generatedContent: data.content ?? null,
                 menuProjectId: data.menuProjectId,
+                emailSent: data.emailSent !== false,
                 step: 6,
             })
         } catch {

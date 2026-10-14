@@ -1,7 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import type { TemplateId } from '@/lib/limits'
 import type { ToolState } from './MenuTool'
+
+type Template = { id: TemplateId; name: string; bg: string; accent: string; textColor: string }
 
 type Props = {
   state: ToolState
@@ -17,7 +20,8 @@ const TEMPLATES = [
   { id: 'charcoal', name: 'チャコール×テラコッタ', bg: '#2b2b2b', accent: '#e07b54', textColor: '#e07b54' },
   { id: 'beige', name: 'ベージュ×ブラウン', bg: '#f5ede0', accent: '#8b5e3c', textColor: '#8b5e3c' },
   { id: 'pink', name: '白×ピンク', bg: '#fff8f9', accent: '#c0547a', textColor: '#c0547a' },
-]
+  // id は API 側の TEMPLATE_IDS と一致していないと型エラーになる。
+] satisfies Template[]
 
 export default function Step3Template({ state, update }: Props) {
   const [selected, setSelected] = useState(state.templateId)
