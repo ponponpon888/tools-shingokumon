@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAnthropic, translationModel } from '@/lib/anthropic'
 import { buildDay0Email } from '@/lib/day0-email'
 import { MissingApiKeyError } from '@/lib/errors'
 import { fingerprint } from '@/lib/fingerprint'
+import { findReusableProject, type Client } from '@/lib/menu-project'
 import {
   enforceRateLimit,
   generateRules,
@@ -12,10 +12,8 @@ import {
 } from '@/lib/rate-limit'
 import { getResend, fromAddress } from '@/lib/resend'
 import { createServiceClient } from '@/lib/supabase'
-import { formatIssues, generateRequestSchema, type GenerateRequest } from '@/lib/validation'
+import { formatIssues, generateRequestSchema } from '@/lib/validation'
 import type { Database, MenuContent, MenuStatus } from '@/types/database'
-
-type Client = SupabaseClient<Database>
 
 const EXPIRY_DAYS = 90
 /** PostgreSQL の unique 制約違反。 */
@@ -50,7 +48,8 @@ export async function POST(req: NextRequest) {
   }
 
   // 1. 同じ入力が既に処理済みなら、翻訳も課金も発生させずに返す。
-  const lookup = await findByFingerprint(supabase, requestFingerprint)
+  //    期限切れの行は対象外。再利用すると見られない URL を送ることになる。
+  const lookup = await findReusableProject(supabase, requestFingerprint)
   if (lookup.error) {
     console.error('Generate: fingerprint lookup failed:', lookup.error)
     return NextResponse.json({ error: 'Storage is unavailable' }, { status: 503 })
@@ -115,7 +114,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 翻訳には数秒かかる。その間に同じ入力が走り切っていないか、書く直前にもう一度見る。
-  const recheck = await findByFingerprint(supabase, requestFingerprint)
+  const recheck = await findReusableProject(supabase, requestFingerprint)
   if (recheck.project) {
     return NextResponse.json({
       menuProjectId: recheck.project.id,
@@ -183,7 +182,7 @@ export async function POST(req: NextRequest) {
   if (menuError || !menuProject) {
     // 同時に同じ入力が来た場合は unique 制約で弾かれる。先に入った行を返す。
     if (menuError?.code === UNIQUE_VIOLATION) {
-      const raced = await findByFingerprint(supabase, requestFingerprint)
+      const raced = await findReusableProject(supabase, requestFingerprint)
       if (raced.project) {
         return NextResponse.json({
           menuProjectId: raced.project.id,
@@ -210,38 +209,6 @@ export async function POST(req: NextRequest) {
     emailSent,
     reused: false,
   })
-}
-
-type FoundProject = {
-  id: string
-  status: MenuStatus
-  contactId: string | null
-}
-
-async function findByFingerprint(
-  supabase: Client,
-  requestFingerprint: string
-): Promise<{ project: FoundProject | null; error: string | null }> {
-  const { data, error } = await supabase
-    .from('menu_projects')
-    .select('id, status, shops(contact_id)')
-    .eq('request_fingerprint', requestFingerprint)
-    .limit(1)
-    .maybeSingle()
-
-  if (error) {
-    return { project: null, error: error.message }
-  }
-  if (!data) {
-    return { project: null, error: null }
-  }
-
-  const shop = data.shops as { contact_id: string | null } | null
-
-  return {
-    project: { id: data.id, status: data.status, contactId: shop?.contact_id ?? null },
-    error: null,
-  }
 }
 
 /**

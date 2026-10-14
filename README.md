@@ -54,8 +54,14 @@ cp .env.local.example .env.local
 | `OCR_MODEL` | | OCR のモデル。未設定なら `claude-opus-4-5` |
 | `TRANSLATION_MODEL` | | 翻訳のモデル。未設定なら `claude-haiku-4-5-20251001` |
 | `RATE_LIMIT_OCR_IP_PER_HOUR` | | 既定 5 |
+| `RATE_LIMIT_OCR_GLOBAL_PER_DAY` | | 既定 50（全体） |
 | `RATE_LIMIT_GENERATE_IP_PER_HOUR` | | 既定 5 |
 | `RATE_LIMIT_GENERATE_EMAIL_PER_DAY` | | 既定 3 |
+| `RATE_LIMIT_GENERATE_GLOBAL_PER_DAY` | | 既定 100（全体） |
+| `RATE_LIMIT_CHAT_IP_PER_HOUR` | | 既定 20 |
+| `RATE_LIMIT_CHAT_GLOBAL_PER_DAY` | | 既定 500（全体） |
+
+全体の上限（`*_GLOBAL_PER_DAY`）は、1 つの IP からの連打ではなく、分散したアクセス全体で API 費用が伸びるのを止めるためのものです。既定値は仮置きなので、実際の利用に合わせて変えてください。
 
 API キーは Vercel の環境変数に入れ、リポジトリにはコミットしません。
 
@@ -95,12 +101,13 @@ npm run build      # 本番ビルド
 
 ## 公開 API の扱い
 
-`/api/tools/menu/ocr` と `/api/tools/menu/generate` は認証なしで叩けるため、次の制限をかけています。
+`/api/tools/menu/ocr`、`/api/tools/menu/generate`、`/api/menu/chat` は認証なしで叩けるため、次の制限をかけています。
 
-- **入力検証**: zod。画像は JPEG / PNG / WebP のみ、base64 の長さ上限あり。言語・テンプレート・品目数も範囲を決めています
-- **レート制限**: Supabase の `rate_limit_events` テーブルで数えます。IP とメールは sha256 にして保存し、生の値は入れません
+- **入力検証**: zod。画像は JPEG / PNG / WebP のみ、base64 の長さ上限あり。言語・テンプレート・品目数、質問文とメニュー文の長さも範囲を決めています
+- **レート制限**: Supabase の `rate_limit_events` テーブルで数えます。IP とメールは sha256 にして保存し、生の値は入れません。IP ごと・メールごとの上限に加えて、**全体の 1 日あたりの上限**も持っています
+- **記録してから数えます**: 先に 1 件記録し、自分の分を含めて数えます。逆の順序だと、同時に来たリクエストが全部まだ 0 件の状態を見て通り抜けてしまいます。この順序なら、同時に何本来ても通るのは上限の本数以下になります。代わりに、拒否されたリクエストもウィンドウの回数に数えられます
 - **数えられないときは通しません**: テーブルが無い・DB 障害といった場合は 503 を返します。レート制限が効かない状態で有料 API が呼ばれるのを避けるためです
-- **冪等性**: 同じ入力の再送は `menu_projects.request_fingerprint`（入力の sha256）で見分け、`shops` / `menu_projects` を二重に作りません。翻訳も呼び直しません
+- **冪等性**: 同じ入力の再送は `menu_projects.request_fingerprint`（入力の sha256）で見分け、`shops` / `menu_projects` を二重に作りません。翻訳も呼び直しません。期限切れの行は再利用しません（`cleanup-pdfs` が `expired` にするとき `request_fingerprint` を外します）
 - **送信失敗の扱い**: メール送信に失敗しても 500 にはせず、`menu_projects.status` を `email_failed` にして `message_events` に理由を残します。メニュー自体は URL で見られます
 
 ## ディレクトリ構成
@@ -113,7 +120,6 @@ src/
 │   │   │   ├── ocr/        # 写真 → テキスト（Claude Vision）
 │   │   │   └── generate/   # 翻訳 → DB 保存 → メール送信
 │   │   ├── menu/chat/      # 公開メニューの質問・注文フレーズ
-│   │   ├── send-email/     # 汎用メール送信
 │   │   └── cron/
 │   │       ├── step-emails/   # ステップメール配信（毎日 2 時）
 │   │       └── cleanup-pdfs/  # 期限切れ削除（毎日 3 時）
@@ -130,6 +136,7 @@ src/
 │   ├── fingerprint.ts      # 冪等性のキー
 │   ├── html.ts             # HTML エスケープ
 │   ├── limits.ts           # サーバー・クライアント共有の上限
+│   ├── menu-project.ts     # 再利用してよい状態と期限切れの扱い
 │   ├── ocr-parse.ts        # OCR 応答の取り出しと復元
 │   ├── rate-limit.ts       # レート制限
 │   ├── resend.ts           # Resend クライアント

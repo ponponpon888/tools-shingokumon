@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_IMAGE_BASE64_LENGTH, MAX_TOTAL_ITEMS } from '@/lib/limits'
-import { generateRequestSchema, ocrRequestSchema } from '@/lib/validation'
+import {
+  MAX_CHAT_MENU_TEXT_LENGTH,
+  MAX_CHAT_QUESTION_LENGTH,
+  MAX_IMAGE_BASE64_LENGTH,
+  MAX_TOTAL_ITEMS,
+} from '@/lib/limits'
+import { chatRequestSchema, generateRequestSchema, ocrRequestSchema } from '@/lib/validation'
 
 const item = {
   name_ja: '唐揚げ',
@@ -180,5 +185,77 @@ describe('generateRequestSchema', () => {
       currency: 'JPY',
       tax_included: true,
     })
+  })
+})
+
+describe('chatRequestSchema', () => {
+  const order = { menuText: '唐揚げ', lang: 'en', mode: 'order', quantity: 2 }
+  const question = { menuText: '唐揚げ 680円', lang: 'en', question: 'Is this spicy?' }
+
+  it('注文フレーズモードを通す', () => {
+    expect(chatRequestSchema.safeParse(order).success).toBe(true)
+  })
+
+  it('質問モードを通す', () => {
+    expect(chatRequestSchema.safeParse(question).success).toBe(true)
+  })
+
+  it('menuText が無ければ拒否する', () => {
+    expect(chatRequestSchema.safeParse({ ...order, menuText: '' }).success).toBe(false)
+    expect(chatRequestSchema.safeParse({ ...order, menuText: '   ' }).success).toBe(false)
+    expect(chatRequestSchema.safeParse({ lang: 'en', mode: 'order' }).success).toBe(false)
+  })
+
+  it('menuText が長すぎれば拒否する', () => {
+    const menuText = 'あ'.repeat(MAX_CHAT_MENU_TEXT_LENGTH + 1)
+    expect(chatRequestSchema.safeParse({ ...order, menuText }).success).toBe(false)
+  })
+
+  it('menuText の上限ちょうどは通す', () => {
+    const menuText = 'あ'.repeat(MAX_CHAT_MENU_TEXT_LENGTH)
+    expect(chatRequestSchema.safeParse({ ...order, menuText }).success).toBe(true)
+  })
+
+  it('question が長すぎれば拒否する', () => {
+    const longQuestion = 'a'.repeat(MAX_CHAT_QUESTION_LENGTH + 1)
+    expect(chatRequestSchema.safeParse({ ...question, question: longQuestion }).success).toBe(false)
+  })
+
+  it('question の上限ちょうどは通す', () => {
+    const exact = 'a'.repeat(MAX_CHAT_QUESTION_LENGTH)
+    expect(chatRequestSchema.safeParse({ ...question, question: exact }).success).toBe(true)
+  })
+
+  it('質問モードで question が無ければ拒否する', () => {
+    expect(chatRequestSchema.safeParse({ menuText: '唐揚げ', mode: 'question' }).success).toBe(false)
+    expect(chatRequestSchema.safeParse({ menuText: '唐揚げ' }).success).toBe(false)
+  })
+
+  it('注文モードなら question は無くてよい', () => {
+    expect(chatRequestSchema.safeParse({ menuText: '唐揚げ', mode: 'order' }).success).toBe(true)
+  })
+
+  it('知らない言語は英語に落とす（旧データのため）', () => {
+    const parsed = chatRequestSchema.parse({ ...order, lang: 'fr' })
+    expect(parsed.lang).toBe('en')
+  })
+
+  it('lang 未指定なら英語', () => {
+    const parsed = chatRequestSchema.parse({ menuText: '唐揚げ', mode: 'order' })
+    expect(parsed.lang).toBe('en')
+  })
+
+  it('数量は 1 以上 99 以下に収める', () => {
+    expect(chatRequestSchema.parse({ ...order, quantity: 0 }).quantity).toBe(1)
+    expect(chatRequestSchema.parse({ ...order, quantity: 100 }).quantity).toBe(1)
+    expect(chatRequestSchema.parse({ ...order, quantity: 2.5 }).quantity).toBe(1)
+    expect(chatRequestSchema.parse({ ...order, quantity: 99 }).quantity).toBe(99)
+    expect(chatRequestSchema.parse({ menuText: '唐揚げ', mode: 'order' }).quantity).toBe(1)
+  })
+
+  it('知らない mode は質問モードとして扱う', () => {
+    const parsed = chatRequestSchema.safeParse({ menuText: '唐揚げ', mode: 'anything' })
+    // question が無いので、質問モードとして弾かれる
+    expect(parsed.success).toBe(false)
   })
 })

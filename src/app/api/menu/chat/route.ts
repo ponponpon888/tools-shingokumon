@@ -1,8 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAnthropic } from '@/lib/anthropic'
 import { MissingApiKeyError } from '@/lib/errors'
+import {
+    chatRules,
+    enforceRateLimit,
+    rateLimitResponseInit,
+    readClientIp,
+} from '@/lib/rate-limit'
+import { chatRequestSchema, formatIssues } from '@/lib/validation'
 
 export async function POST(req: NextRequest) {
+    let body: unknown
+    try {
+        body = await req.json()
+    } catch {
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    }
+
+    const parsed = chatRequestSchema.safeParse(body)
+    if (!parsed.success) {
+        return NextResponse.json(
+            { error: 'Invalid request', detail: formatIssues(parsed.error) },
+            { status: 400 }
+        )
+    }
+
+    // この API も認証なしで Anthropic を呼ぶので、OCR / generate と同じ仕組みで数える。
+    const limit = await enforceRateLimit('chat', chatRules(readClientIp(req.headers)))
+    if (!limit.ok) {
+        const init = rateLimitResponseInit(limit)
+        return NextResponse.json(init.body, { status: init.status, headers: init.headers })
+    }
+
     let client: ReturnType<typeof getAnthropic>
     try {
         client = getAnthropic()
@@ -14,16 +43,12 @@ export async function POST(req: NextRequest) {
         throw error
     }
 
+    const { question, menuText, lang, mode, quantity } = parsed.data
+
     try {
-        const { question, menuText, lang, mode, quantity } = await req.json()
-
-        if (!menuText) {
-            return NextResponse.json({ error: 'Missing params' }, { status: 400 })
-        }
-
         // 注文フレーズモード
         if (mode === 'order') {
-            const qty = quantity ?? 1
+            const qty = quantity
             const langMap: Record<string, string> = {
                 en: 'English',
                 zh: 'Chinese (Simplified)',
@@ -56,8 +81,8 @@ Rules:
 
             const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '{}'
             try {
-                const parsed = JSON.parse(text)
-                return NextResponse.json(parsed)
+                const phrase = JSON.parse(text)
+                return NextResponse.json(phrase)
             } catch {
                 // フォールバックも選択言語に対応
                 const fallbackMap: Record<string, { foreign: string; foreignPlural: string }> = {

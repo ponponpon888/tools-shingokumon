@@ -38,6 +38,11 @@ export const MAX_SECTIONS = 50
 export const MAX_ITEMS_PER_SECTION = 200
 export const MAX_TOTAL_ITEMS = 500
 
+/** 公開メニューの質問・注文フレーズ（/api/menu/chat）の入力上限。 */
+export const MAX_CHAT_QUESTION_LENGTH = 500
+export const MAX_CHAT_MENU_TEXT_LENGTH = 4000
+export const MAX_CHAT_QUANTITY = 99
+
 export function isAllowedMediaType(value: string): value is AllowedMediaType {
   return (ALLOWED_MEDIA_TYPES as readonly string[]).includes(value)
 }

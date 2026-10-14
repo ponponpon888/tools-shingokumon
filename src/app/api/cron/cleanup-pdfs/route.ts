@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { EXPIRE_UPDATE } from '@/lib/menu-project'
 import { createServiceClient } from '@/lib/supabase'
 
 /** レート制限の記録を残す日数。最長のウィンドウ（1日）より十分長く取る。 */
@@ -53,10 +54,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ステータスをexpiredに更新
+    // ステータスをexpiredにし、request_fingerprint を外す。
+    // 外さないと、同じ入力の再送でこの行が再利用され、見られない URL が送られる。
     const { error: updateError } = await supabase
       .from('menu_projects')
-      .update({ status: 'expired' })
+      .update(EXPIRE_UPDATE)
       .eq('id', project.id)
 
     if (updateError) {

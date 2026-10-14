@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import {
   ALLOWED_MEDIA_TYPES,
+  MAX_CHAT_MENU_TEXT_LENGTH,
+  MAX_CHAT_QUANTITY,
+  MAX_CHAT_QUESTION_LENGTH,
   MAX_IMAGE_BASE64_LENGTH,
   MAX_ITEMS_PER_SECTION,
   MAX_SECTIONS,
@@ -80,6 +83,23 @@ export const generateRequestSchema = z.object({
 })
 
 export type GenerateRequest = z.infer<typeof generateRequestSchema>
+
+export const chatRequestSchema = z
+  .object({
+    question: z.string().trim().max(MAX_CHAT_QUESTION_LENGTH).optional(),
+    menuText: z.string().trim().min(1, 'menuText is required').max(MAX_CHAT_MENU_TEXT_LENGTH),
+    // 旧データの selected_languages に en/zh/ko 以外が入っていても落とさず、
+    // 従来どおり英語にフォールバックする。
+    lang: z.enum(SUPPORTED_LANGUAGES).catch('en').default('en'),
+    mode: z.enum(['order', 'question']).catch('question').default('question'),
+    quantity: z.number().int().min(1).max(MAX_CHAT_QUANTITY).catch(1).default(1),
+  })
+  .refine((value) => value.mode === 'order' || (value.question?.length ?? 0) > 0, {
+    message: 'question is required',
+    path: ['question'],
+  })
+
+export type ChatRequest = z.infer<typeof chatRequestSchema>
 
 /** zod のエラーを、入力値を含めない短い文字列にまとめる。 */
 export function formatIssues(error: z.ZodError): string {
