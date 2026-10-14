@@ -1,5 +1,13 @@
 # tools-shingokumon
 
+> **停止中 — このツールは現在動きません。**
+> バックエンドの Supabase プロジェクトを終了したため、OCR と生成の API は 503 を返します。
+> コードと設計は参照用に公開しています。以下の説明は、停止前に実装されていた内容です。
+
+> **Out of service — this tool does not run.**
+> The backing Supabase project has been shut down, so the OCR and generation APIs return 503.
+> The code and design stay public for reference. Everything below describes the tool as it was built.
+
 お店向けの無料 AI ツール集。メニュー表の写真を Claude Vision で読み取り、多言語に翻訳して、閲覧用の URL と QR コードをメールで届ける Next.js アプリです。
 
 ## 何ができるか

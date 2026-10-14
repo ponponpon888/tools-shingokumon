@@ -1,12 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/step-emails",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/cleanup-pdfs",
-      "schedule": "0 3 * * *"
-    }
-  ]
-}
+{}
