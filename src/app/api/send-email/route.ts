@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Resend } from 'resend'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
+import { MissingApiKeyError } from '@/lib/errors'
+import { fromAddress, getResend } from '@/lib/resend'
 
 export async function POST(request: NextRequest) {
+    let resend: ReturnType<typeof getResend>
+    try {
+        resend = getResend()
+    } catch (error) {
+        if (error instanceof MissingApiKeyError) {
+            console.error('send-email: missing env', error.envName)
+            return NextResponse.json({ error: 'Not configured' }, { status: 503 })
+        }
+        throw error
+    }
+
     try {
         const { to, subject, html } = await request.json()
 
@@ -15,7 +25,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { data, error } = await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+            from: fromAddress(),
             to,
             subject,
             html,

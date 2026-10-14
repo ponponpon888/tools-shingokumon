@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
-
-const client = new Anthropic()
+import { getAnthropic } from '@/lib/anthropic'
+import { MissingApiKeyError } from '@/lib/errors'
 
 export async function POST(req: NextRequest) {
+    let client: ReturnType<typeof getAnthropic>
+    try {
+        client = getAnthropic()
+    } catch (error) {
+        if (error instanceof MissingApiKeyError) {
+            console.error('menu/chat: missing env', error.envName)
+            return NextResponse.json({ error: 'Not configured' }, { status: 503 })
+        }
+        throw error
+    }
+
     try {
         const { question, menuText, lang, mode, quantity } = await req.json()
 
