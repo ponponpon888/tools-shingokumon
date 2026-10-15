@@ -6,6 +6,7 @@ import GeoBg from '@/components/ui/GeoBg'
 // 生成済みのメニューも読み出せません。完成メールのリンク先がここなので、404 やエラー画面
 // ではなく、理由の分かる案内を返します。
 // 表示の実装は参照用にそのまま残してあります: ./MenuDisplay.tsx
+// その実装が叩いていた注文フレーズの API（/api/menu/chat）も削除済みです。
 //
 // Supabase は読みません。id は URL に残りますが、何にも使いません。
 export const dynamic = 'force-static'
