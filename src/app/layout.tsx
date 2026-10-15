@@ -1,13 +1,16 @@
 import type { Metadata } from 'next'
 import './globals.css'
 
+// ツールは停止中なので、タイトルも説明も提供中のものとして書かない。
+// 検索結果と SNS カードに「無料作成」が出続けるのを避ける。
 export const metadata: Metadata = {
-  title: 'お店のための無料AIツール | tools.shingokumon.com',
+  title: 'tools.shingokumon.com（停止中）',
   description:
-    '飲食・旅館・美容サロン向け。多言語メニューPDF作成・Google口コミ返信・集客診断など、現場で使えるAIツールを無料で提供。',
+    'お店向けのAIツールを公開していましたが、現在は停止しています。コードと設計は参照用に公開しています。',
   openGraph: {
-    title: 'お店のための無料AIツール',
-    description: '日本語のメニューを入れるだけ。英語・中国語・韓国語の多言語メニューPDFを無料作成。',
+    title: 'tools.shingokumon.com（停止中）',
+    description:
+      'お店向けのAIツールを公開していましたが、現在は停止しています。コードと設計は参照用に公開しています。',
     siteName: 'tools.shingokumon.com',
   },
 }

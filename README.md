@@ -1,11 +1,15 @@
 # tools-shingokumon
 
 > **停止中 — このツールは現在動きません。**
-> バックエンドの Supabase プロジェクトを終了したため、OCR と生成の API は 503 を返します。
+> バックエンドの Supabase プロジェクトを終了したため、OCR・生成・公開メニュー応答・cron の
+> API ルート（`src/app/api/**`）はすべて削除しました。Anthropic / Resend / Supabase へ
+> 出ていく経路はデプロイ上に残っていません。これらの URL は 404 を返します。
 > コードと設計は参照用に公開しています。以下の説明は、停止前に実装されていた内容です。
 
 > **Out of service — this tool does not run.**
-> The backing Supabase project has been shut down, so the OCR and generation APIs return 503.
+> The backing Supabase project has been shut down, and every API route under `src/app/api/**`
+> has been removed, so nothing in the deployment can reach Anthropic, Resend or Supabase.
+> Those URLs now return 404.
 > The code and design stay public for reference. Everything below describes the tool as it was built.
 
 お店向けの無料 AI ツール集。メニュー表の写真を Claude Vision で読み取り、多言語に翻訳して、閲覧用の URL と QR コードをメールで届ける Next.js アプリです。
@@ -123,14 +127,7 @@ npm run build      # 本番ビルド
 ```
 src/
 ├── app/
-│   ├── api/
-│   │   ├── tools/menu/
-│   │   │   ├── ocr/        # 写真 → テキスト（Claude Vision）
-│   │   │   └── generate/   # 翻訳 → DB 保存 → メール送信
-│   │   ├── menu/chat/      # 公開メニューの質問・注文フレーズ
-│   │   └── cron/
-│   │       ├── step-emails/   # ステップメール配信（毎日 2 時）
-│   │       └── cleanup-pdfs/  # 期限切れ削除（毎日 3 時）
+│   ├── （api/ は削除済み: ocr・generate・menu/chat・cron 2 本）
 │   ├── menu/[id]/          # 生成されたメニューの公開ページ
 │   ├── tools/menu/         # ツール画面（5 ステップ）
 │   └── page.tsx            # トップページ
@@ -162,7 +159,7 @@ src/
 4. `supabase/migrations/` の未適用分を SQL Editor で実行
 5. デプロイ
 
-Cron は `vercel.json` で定義しています。
+Cron の定義は `vercel.json` から外し、cron のルート自体も削除しました。
 
 ## ライセンス
 

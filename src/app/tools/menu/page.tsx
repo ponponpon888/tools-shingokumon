@@ -3,14 +3,16 @@ import Nav from '@/components/layout/Nav'
 import GeoBg from '@/components/ui/GeoBg'
 
 // このツールは停止中です。バックエンドの Supabase プロジェクトを終了したため、
-// OCR と生成の API は 503 を返します。実装は参照用にそのまま残してあります:
+// OCR・生成・公開メニュー応答・cron の API ルートはすべて削除しました。
+// Anthropic / Resend / Supabase へ出ていく経路は、デプロイ上に残っていません。
+// 実装は参照用に残してあります:
 //   UI        src/components/tool/MenuTool.tsx （および Step1〜Step5）
-//   API       src/app/api/tools/menu/ocr, src/app/api/tools/menu/generate
 //   ロジック  src/lib/*.ts
+//   API       削除済み。git 履歴に残っています
 export const metadata: Metadata = {
   title: '多言語メニュー作成ツール（停止中） | tools.shingokumon.com',
   description:
-    'このツールは停止中です。バックエンドの Supabase プロジェクトを終了したため、OCR と生成の API は 503 を返します。',
+    'このツールは停止中です。バックエンドの Supabase プロジェクトを終了したため、OCR と生成の API は削除しました。',
   robots: { index: false, follow: false },
 }
 
@@ -44,7 +46,7 @@ export default function MenuToolPage() {
         >
           <p className="mb-4 text-sm leading-loose" style={{ color: 'rgba(240,236,228,0.5)' }}>
             バックエンドの Supabase プロジェクトを終了したため、メニューの読み取り（OCR）と生成の
-            API は 503 を返します。新しいメニューを作ることはできません。
+            API ルートは削除しました。新しいメニューを作ることはできません。
           </p>
           <p className="text-sm leading-loose" style={{ color: 'rgba(240,236,228,0.5)' }}>
             再開の予定は未定です。コードと設計は参照用に公開しています。
@@ -56,8 +58,8 @@ export default function MenuToolPage() {
           style={{ borderColor: 'rgba(201,168,76,0.08)', background: 'rgba(201,168,76,0.02)' }}
         >
           <p className="mb-4 text-sm leading-loose" style={{ color: 'rgba(240,236,228,0.4)' }}>
-            The backing Supabase project has been shut down, so the OCR and generation APIs return
-            503. Creating a new menu is not possible.
+            The backing Supabase project has been shut down, and the OCR and generation API routes
+            have been removed. Creating a new menu is not possible.
           </p>
           <p className="text-sm leading-loose" style={{ color: 'rgba(240,236,228,0.4)' }}>
             There is no restart date. The code and design stay public for reference.
