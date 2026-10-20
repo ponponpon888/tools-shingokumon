@@ -29,7 +29,7 @@ export default function Nav() {
           ツール一覧
         </a>
         <a
-          href="https://shingokumon.com"
+          href="https://www.shingokumon.com"
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs tracking-wider"
@@ -78,7 +78,7 @@ export default function Nav() {
               ツール一覧
             </a>
             <a
-              href="https://shingokumon.com"
+              href="https://www.shingokumon.com"
               className="text-sm tracking-wider"
               style={{ color: 'rgba(240,236,228,0.55)' }}
             >

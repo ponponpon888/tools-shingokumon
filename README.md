@@ -161,6 +161,16 @@ src/
 
 Cron の定義は `vercel.json` から外し、cron のルート自体も削除しました。
 
+## 作った人
+
+**公門 慎吾（Shingo Kumon）** — くもん しんご
+
+AI を使った開発で、Web サービスと業務の仕組みを作り、複数のサービスを本番で運用しています。
+
+- ほかの作品: [GitHub プロフィール](https://github.com/ponponpon888)
+- Web: [shingokumon.com](https://www.shingokumon.com) / X: [@shingo_kumon](https://x.com/shingo_kumon)
+- 開発の相談（業務委託・フルリモート）: [お問い合わせ](https://www.shingokumon.com/contact)
+
 ## ライセンス
 
 MIT。[LICENSE](LICENSE) を参照してください。

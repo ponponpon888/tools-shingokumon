@@ -1,5 +1,5 @@
 const items = [
-  { num: '13年', label: 'ホテル支配人経験' },
+  { num: '2017–2020', label: 'ホテル運営会社 代表取締役' },
   { num: '3言語', label: '英・中・韓 対応' },
   { num: '1分', label: 'PDF完成' },
   { num: '無料', label: '完全無料で使える' },
