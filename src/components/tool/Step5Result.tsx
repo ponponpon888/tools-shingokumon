@@ -272,7 +272,7 @@ export default function Step5Result({ state }: Props) {
         <p className="text-[10px]" style={{ color: textFaint }}>
           Powered by{' '}
           <a
-            href="https://shingokumon.com"
+            href="https://www.shingokumon.com"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: 'rgba(201,168,76,0.4)' }}

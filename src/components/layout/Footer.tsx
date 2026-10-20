@@ -9,7 +9,7 @@ export default function Footer() {
       </span>
       <div className="flex flex-col items-center gap-3 md:flex-row md:gap-6">
         <a
-          href="https://shingokumon.com"
+          href="https://www.shingokumon.com"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 text-xs"
@@ -19,7 +19,7 @@ export default function Footer() {
           <span style={{ color: 'rgba(201,168,76,0.55)' }}>→</span>
         </a>
         <a
-          href="https://shingokumon.com/musubu"
+          href="https://musubu-lp.vercel.app"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 text-xs"
