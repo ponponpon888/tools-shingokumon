@@ -19,7 +19,7 @@ export default function Footer() {
           <span style={{ color: 'rgba(201,168,76,0.55)' }}>→</span>
         </a>
         <a
-          href="https://shingokumon.com/musubu"
+          href="https://musubu-lp.vercel.app"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 text-xs"

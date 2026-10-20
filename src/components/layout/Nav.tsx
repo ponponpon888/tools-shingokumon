@@ -38,7 +38,7 @@ export default function Nav() {
           shingokumon.com
         </a>
         <a
-          href="https://shingokumon.com/musubu"
+          href="https://musubu-lp.vercel.app"
           target="_blank"
           rel="noopener noreferrer"
           className="border px-4 py-2 text-xs tracking-wider"
@@ -85,7 +85,7 @@ export default function Nav() {
               shingokumon.com
             </a>
             <a
-              href="https://shingokumon.com/musubu"
+              href="https://musubu-lp.vercel.app"
               className="text-sm tracking-wider"
               style={{ color: '#c9a84c' }}
             >
